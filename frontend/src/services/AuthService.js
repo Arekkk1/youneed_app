@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // URL backendu - używaj /api prefix
-const API_URL = 'http://localhost:5000/api'; // Corrected base URL
+const API_URL = 'http://49.13.68.62:5000/api'; // Corrected base URL
 
 // Logowanie przez Google
 export const googleLogin = async (role = 'client') => { // Pass role if needed

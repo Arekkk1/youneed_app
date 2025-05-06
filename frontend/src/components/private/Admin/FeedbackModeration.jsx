@@ -12,7 +12,7 @@ useEffect(() => {
       setLoading(true);
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get('http://localhost:5000/api/admin/feedback', {
+        const response = await axios.get('http://49.13.68.62:5000/api/admin/feedback', {
           headers: { Authorization: `Bearer ${token}` },
         });
         setFeedbacks(response.data.data);
@@ -28,7 +28,7 @@ useEffect(() => {
   const deleteFeedback = async (id) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/admin/feedback/${id}`, {
+      await axios.delete(`http://49.13.68.62:5000/api/admin/feedback/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setFeedbacks(feedbacks.filter((feedback) => feedback.id !== id));

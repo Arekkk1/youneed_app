@@ -14,7 +14,7 @@ function AdminDashboard() {
   useEffect(() => {
     const fetchAnalytics = async () => {
       try {
-        const response = await axios.get('http://localhost:5000/api/users/admin/analytics', {
+        const response = await axios.get('http://49.13.68.62:5000/api/users/admin/analytics', {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         });
         setAnalytics({
