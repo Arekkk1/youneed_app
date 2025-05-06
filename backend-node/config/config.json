@@ -1,27 +1,27 @@
 {
-    "development": {
-      "username": "admin_youneed",
-      "password": "saKDmjWgVcbKbXEed4nK",
-      "database": "admin_youneed",
-      "host": "WiktorowiczA",
-      "port": 3306,
-      "dialect": "mysql",
-      "migrationStorageTableName": "SequelizeMeta"
-    },
-    "test": {
-      "username": "admin_youneed",
-      "password": "saKDmjWgVcbKbXEed4nK",
-      "database": "admin_youneed_test",
-      "host": "WiktorowiczA",
-      "port": 3306,
-      "dialect": "mysql"
-    },
-    "production": {
-      "username": "admin_youneed",
-      "password": "saKDmjWgVcbKbXEed4nK",
-      "database": "admin_youneed_prod",
-      "host": "WiktorowiczA",
-      "port": 3306,
-      "dialect": "mysql"
-    }
+  "development": {
+    "username": "root",
+    "password": "nj43faIhBxggq6tIzVt7E50RHSX9UCfCkjdN3aMz15YMlPooj79Px8ORPyK5ti4a",
+    "database": "admin_youneed",
+    "host": "128.140.88.47",
+    "port": 5432,
+    "dialect": "mysql",
+    "migrationStorageTableName": "SequelizeMeta"
+  },
+  "test": {
+    "username": "root",
+    "password": "nj43faIhBxggq6tIzVt7E50RHSX9UCfCkjdN3aMz15YMlPooj79Px8ORPyK5ti4a",
+    "database": "admin_youneed_test",
+    "host": "128.140.88.47",
+    "port": 5432,
+    "dialect": "mysql"
+  },
+  "production": {
+    "username": "root",
+    "password": "nj43faIhBxggq6tIzVt7E50RHSX9UCfCkjdN3aMz15YMlPooj79Px8ORPyK5ti4a",
+    "database": "admin_youneed_prod",
+    "host": "128.140.88.47",
+    "port": 5432,
+    "dialect": "mysql"
   }
+}
