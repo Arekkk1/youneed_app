@@ -1,0 +1,27 @@
+{
+    "development": {
+      "username": "admin_youneed",
+      "password": "saKDmjWgVcbKbXEed4nK",
+      "database": "admin_youneed",
+      "host": "WiktorowiczA",
+      "port": 3306,
+      "dialect": "mysql",
+      "migrationStorageTableName": "SequelizeMeta"
+    },
+    "test": {
+      "username": "admin_youneed",
+      "password": "saKDmjWgVcbKbXEed4nK",
+      "database": "admin_youneed_test",
+      "host": "WiktorowiczA",
+      "port": 3306,
+      "dialect": "mysql"
+    },
+    "production": {
+      "username": "admin_youneed",
+      "password": "saKDmjWgVcbKbXEed4nK",
+      "database": "admin_youneed_prod",
+      "host": "WiktorowiczA",
+      "port": 3306,
+      "dialect": "mysql"
+    }
+  }
