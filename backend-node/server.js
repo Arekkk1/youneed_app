@@ -110,9 +110,10 @@ app.use((err, req, res, next) => {
 // Database Synchronization and Server Start
 const PORT = process.env.PORT || 3000;
 
-db.sequelize.sync({ alter: process.env.NODE_ENV !== 'production' })
+// ZMIANA: Używamy db.sequelize.sync() bez { alter: true } aby uniknąć konfliktów z migracjami.
+db.sequelize.sync() // Usunięto { alter: process.env.NODE_ENV !== 'production' }
   .then(() => {
-    console.log('Database synchronized successfully.');
+    console.log('Database synchronized successfully (tables created if not exist, no alterations).');
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
       console.log(`Frontend URL allowed by CORS: ${process.env.FRONTEND_URL || 'Not Set (Using same origin)'}`);
@@ -126,4 +127,5 @@ db.sequelize.sync({ alter: process.env.NODE_ENV !== 'production' })
     process.exit(1);
   });
 
+module.exports = app;
 module.exports = app;
