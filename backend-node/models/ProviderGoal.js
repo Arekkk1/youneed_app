@@ -4,7 +4,7 @@ module.exports = (sequelize, DataTypes) => {
         goal: DataTypes.TEXT,
         providerId: {
           type: DataTypes.INTEGER,
-          references: { model: 'Users', key: 'id' },
+          references: { model: 'users', key: 'id' },
           allowNull: false,
         },
         createdAt: DataTypes.DATE,

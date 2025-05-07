@@ -10,13 +10,16 @@
         regon: DataTypes.STRING,
         userId: { // Should link to the provider User
           type: DataTypes.INTEGER,
-          references: { model: 'Users', key: 'id' },
+          references: { model: 'users', key: 'id' },
           allowNull: false,
           unique: true // Assuming one detail record per provider user
         },
         createdAt: DataTypes.DATE,
         updatedAt: DataTypes.DATE,
-      });
+      },{
+       tableName: 'companydetails', // Małe litery
+       timestamps: true,
+     });
     
       CompanyDetail.associate = models => {
         CompanyDetail.belongsTo(models.User, { foreignKey: 'userId' });

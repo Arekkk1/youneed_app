@@ -10,7 +10,7 @@
         paymentGatewayId: DataTypes.STRING, // ID from payment provider (e.g., Stripe, PayU)
         userId: {
           type: DataTypes.INTEGER,
-          references: { model: 'Users', key: 'id' },
+          references: { model: 'users', key: 'id' },
           allowNull: false,
         },
         createdAt: DataTypes.DATE,

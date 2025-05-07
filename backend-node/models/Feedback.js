@@ -1,36 +1,63 @@
 module.exports = (sequelize, DataTypes) => {
-  const Feedback = sequelize.define('Feedback', {
-    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-    rating: DataTypes.INTEGER,
-    comment: DataTypes.TEXT,
-    clientId: {
-      type: DataTypes.INTEGER,
-      references: { model: 'Users', key: 'id' },
-      allowNull: false,
-    },
-    providerId: {
-      type: DataTypes.INTEGER,
-      references: { model: 'Users', key: 'id' },
-      allowNull: false,
-    },
-    orderId: {
-      type: DataTypes.INTEGER,
-      references: { model: 'Orders', key: 'id' },
-      allowNull: false, // Feedback must be linked to an order
-      unique: true, // Only one feedback per order
-    },
-    createdAt: DataTypes.DATE,
-    updatedAt: DataTypes.DATE,
-  }, {
-    tableName: 'feedback', // Explicitly set the table name
-    timestamps: true // Ensure Sequelize manages createdAt and updatedAt
-  });
+     const Feedback = sequelize.define('Feedback', {
+       id: {
+         type: DataTypes.INTEGER,
+         primaryKey: true,
+         autoIncrement: true,
+       },
+       clientId: {
+         type: DataTypes.INTEGER,
+         allowNull: false,
+         references: {
+           model: 'users', // Małe litery
+           key: 'id',
+         },
+       },
+       providerId: {
+         type: DataTypes.INTEGER,
+         allowNull: false,
+         references: {
+           model: 'users', // Małe litery
+           key: 'id',
+         },
+       },
+       rating: {
+         type: DataTypes.INTEGER,
+         allowNull: true,
+       },
+       comment: {
+         type: DataTypes.TEXT,
+         allowNull: true,
+       },
+       createdAt: {
+         type: DataTypes.DATE,
+         allowNull: false,
+       },
+       updatedAt: {
+         type: DataTypes.DATE,
+         allowNull: false,
+       },
+     }, {
+       tableName: 'feedback', // Małe litery
+       timestamps: true,
+     });
 
-  Feedback.associate = models => {
-    Feedback.belongsTo(models.User, { as: 'Client', foreignKey: 'clientId' });
-    Feedback.belongsTo(models.User, { as: 'Provider', foreignKey: 'providerId' });
-    Feedback.belongsTo(models.Order, { foreignKey: 'orderId' });
-  };
+     Feedback.associate = models => {
+       Feedback.belongsTo(models.User, {
+         as: 'Client',
+         foreignKey: 'clientId',
+         onDelete: 'NO ACTION',
+         onUpdate: 'CASCADE',
+         constraintName: 'fk_feedback_client', // Unikalna nazwa klucza obcego
+       });
+       Feedback.belongsTo(models.User, {
+         as: 'Provider',
+         foreignKey: 'providerId',
+         onDelete: 'NO ACTION',
+         onUpdate: 'CASCADE',
+         constraintName: 'fk_feedback_provider', // Unikalna nazwa klucza obcego
+       });
+     };
 
-  return Feedback;
-};
+     return Feedback;
+   };
