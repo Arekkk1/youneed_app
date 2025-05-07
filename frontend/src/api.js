@@ -1,7 +1,11 @@
 import axios from 'axios';
 
+
+const effectiveApiUrl = import.meta.env.VITE_API_URL || 'http://49.13.68.62:5000/api';
+console.log(`[API DEBUG] Effective API Base URL: ${effectiveApiUrl}`);
+
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: effectiveApiUrl,
   headers: {
     'Content-Type': 'application/json',
   },

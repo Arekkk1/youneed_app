@@ -11,20 +11,29 @@ const HomePage = () => {
   return (
     <div className="bg-Grayscale-Gray80 text-white min-h-screen">
       {/* Header */}
-      <header className="container mx-auto px-4 py-4 flex justify-between items-center">
-        <img src={Logo} alt="YouNeed Logo" className="h-20" />
-        <nav className="flex items-center gap-2">
-          <Link to="/login?role=client" className="text-sm bg-neutral-900 rounded-xl p-3 hover:text-sky-400 transition-colors">Zaloguj się (Klient)</Link>
-          <Link to="/login?role=provider" className="text-sm bg-neutral-900 rounded-xl p-3 hover:text-sky-400 transition-colors">Zaloguj się (Specjalista)</Link>
+       <header className="container mx-auto px-4 py-3 sm:py-4 flex flex-wrap justify-between items-center">
+        <img src={Logo} alt="YouNeed Logo" className="h-12 sm:h-16 md:h-20" />
+        <nav className="flex items-center gap-1 sm:gap-2 flex-wrap justify-end mt-2 sm:mt-0">
+          <Link 
+            to="/login?role=client" 
+            className="text-xs sm:text-sm bg-neutral-900 rounded-lg sm:rounded-xl px-2 py-1.5 sm:px-3 sm:py-2 hover:text-sky-400 transition-colors"
+          >
+            Zaloguj się (Klient)
+          </Link>
+          <Link 
+            to="/login?role=provider" 
+            className="text-xs sm:text-sm bg-neutral-900 rounded-lg sm:rounded-xl px-2 py-1.5 sm:px-3 sm:py-2 hover:text-sky-400 transition-colors"
+          >
+            Zaloguj się (Specjalista)
+          </Link>
           <Link
             to="/register/client"
-            className="bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors flex items-center gap-1"
+            className="bg-sky-500 hover:bg-sky-600 text-white text-xs sm:text-sm font-semibold px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg transition-colors flex items-center gap-1"
           >
-            Zarejestruj się <ArrowRight size={16} />
+            Zarejestruj się <ArrowRight size={14} className="hidden sm:inline" />
           </Link>
         </nav>
       </header>
-
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-20 md:py-32 text-center flex flex-col items-center">
         <h1 className="text-4xl md:text-6xl font-bold mb-4 leading-tight">

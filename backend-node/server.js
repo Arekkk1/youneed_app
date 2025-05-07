@@ -29,7 +29,7 @@ const app = express();
 require('./config/passport')(passport);
 
 // CORS Configuration
-const allowedOrigins = [process.env.FRONTEND_URL || 'http://localhost:5173']; // FRONTEND_URL może być nadal potrzebny, jeśli Coolify wystawia frontend pod innym adresem URL niż backend API
+const allowedOrigins = [process.env.FRONTEND_URL || 'http://49.13.68.62:5173']; // FRONTEND_URL może być nadal potrzebny, jeśli Coolify wystawia frontend pod innym adresem URL niż backend API
 const corsOptions = {
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
@@ -42,6 +42,11 @@ const corsOptions = {
   credentials: true,
 };
 app.use(cors(corsOptions));
+
+// Trasy API
+app.get('/api', (req, res) => {
+  res.json({ message: 'Welcome to the API' });
+});
 
 // Middlewares
 app.use(express.json());
@@ -108,7 +113,7 @@ app.use((err, req, res, next) => {
 });
 
 // Database Synchronization and Server Start
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 // ZMIANA: Używamy db.sequelize.sync() bez { alter: true } aby uniknąć konfliktów z migracjami.
 db.sequelize.sync() // Usunięto { alter: process.env.NODE_ENV !== 'production' }
@@ -127,5 +132,4 @@ db.sequelize.sync() // Usunięto { alter: process.env.NODE_ENV !== 'production' 
     process.exit(1);
   });
 
-module.exports = app;
 module.exports = app;
