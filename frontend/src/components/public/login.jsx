@@ -8,7 +8,7 @@ import FacebookIcon from '../../assets/icon/Facebook.svg';
 import { googleLogin, facebookLogin } from '../../services/AuthService'; // Import social login functions
 
 // Ścieżka API z zmiennej środowiskowej lub domyślna
-const API_URL = 'http://localhost:5000/api'; // Use /api prefix
+const API_URL = 'http://49.13.68.62:5000/api'; // Use /api prefix
 
 // Schemat walidacji dla logowania
 const validationSchema = Yup.object({

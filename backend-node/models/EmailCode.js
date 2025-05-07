@@ -61,7 +61,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     {
       sequelize,
-      modelName: 'EmailCode',
+      modelName: 'emailcode',
       tableName: 'emailcodes', // Explicit table name
       timestamps: true, // Sequelize handles createdAt and updatedAt
     }

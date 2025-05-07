@@ -19,7 +19,7 @@
   "production": {
     "username": "root",
     "password": "nj43faIhBxggq6tIzVt7E50RHSX9UCfCkjdN3aMz15YMlPooj79Px8ORPyK5ti4a",
-    "database": "admin_youneed",
+    "database": "admin_youneed_prod",
     "host": "128.140.88.47",
     "port": 5432,
     "dialect": "mysql"

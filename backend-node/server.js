@@ -132,4 +132,5 @@ db.sequelize.sync() // Usunięto { alter: process.env.NODE_ENV !== 'production' 
     process.exit(1);
   });
 
+
 module.exports = app;

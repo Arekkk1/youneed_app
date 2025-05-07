@@ -13,12 +13,13 @@ export default defineConfig({
     strictPort: true, // Zatrzymaj, jeśli port 5000 jest zajęty
     proxy: {
       '/api': {
-        target: 'http://49.13.68.62:5000/api', // Dopasuj do portu Twojego backendu
+         target: 'http://49.13.68.62:5000/api',  // Dopasuj do portu Twojego backendu
         changeOrigin: true,
         secure: false,
-      },
+rewrite: (path) => path.replace(/^\/api/, '/api'),
     },
   },
+},
   preview: {
     host: 'youuneed.com.pl',
     port: 4173, // Domyślny port dla vite preview

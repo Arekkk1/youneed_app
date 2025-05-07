@@ -5,7 +5,7 @@ const effectiveApiUrl = import.meta.env.VITE_API_URL || 'http://49.13.68.62:5000
 console.log(`[API DEBUG] Effective API Base URL: ${effectiveApiUrl}`);
 
 const api = axios.create({
-  baseURL: effectiveApiUrl,
+  baseURL: effectiveApiUrl
   headers: {
     'Content-Type': 'application/json',
   },
