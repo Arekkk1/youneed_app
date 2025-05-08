@@ -56,7 +56,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState('');
             const [isModalOpen, setIsModalOpen] = useState(false);
-            const [modalMode, setModalMode] = useState('create');
+            const [modalMode, setModalMode] = useState('create'); // 'create' or 'edit'
             const [selectedHourForModal, setSelectedHourForModal] = useState(null);
             const [editingEvent, setEditingEvent] = useState(null);
             const [serviceIdForModal, setServiceIdForModal] = useState(passedServiceId || null);
@@ -68,18 +68,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
             const sliderSecondRef = useRef(null);
 
             // --- Effects ---
-
-            useEffect(() => { generateHoursArray(); }, []);
-            useEffect(() => { generateDayArray(); }, []);
-            useEffect(() => { if (allDayArray.length > 0) generateDateRanges(); }, [allDayArray]);
-            useEffect(() => {
-                if (allDayArray.length > 0 && sliderRef.current) {
-                    const todayIndex = allDayArray.findIndex((item) => isToday(item));
-                    if (todayIndex !== -1) {
-                        setTimeout(() => sliderRef.current?.slickGoTo(todayIndex), 150);
-                    }
-                }
-            }, [allDayArray]);
 
             // Fetch events based on view context
             const fetchEventsForDate = useCallback(async (fetchDate) => {
@@ -184,24 +172,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
             }, [intent, currentUserRole, isViewingSpecificProvider, navigate, location.pathname]);
 
 
-            // --- Date/Time Generation (unchanged) ---
-            const generateHoursArray = () => { /* ... */ };
-            const createDayObject = (day, name) => { /* ... */ };
-            const isToday = (dayObject) => { /* ... */ };
-            const generateDayArray = () => { /* ... */ };
-            const generateDateRanges = () => { /* ... */ };
-            // Re-add implementations if needed, they were removed for brevity
-             useEffect(() => { generateHoursArray(); }, []);
-             useEffect(() => { generateDayArray(); }, []);
-             useEffect(() => { if (allDayArray.length > 0) generateDateRanges(); }, [allDayArray]);
-             useEffect(() => {
-                 if (allDayArray.length > 0 && sliderRef.current) {
-                     const todayIndex = allDayArray.findIndex((item) => isToday(item));
-                     if (todayIndex !== -1) {
-                         setTimeout(() => sliderRef.current?.slickGoTo(todayIndex), 150);
-                     }
-                 }
-             }, [allDayArray]);
+            // --- Date/Time Generation ---
              const generateHoursArrayImpl = () => {
                  const newHoursArray = [];
                  for (let i = 0; i < 24; i++) {
@@ -253,10 +224,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
                           currentMonth = monthIndex;
                           currentYear = yearIndex;
                           const nameMonth = dayDate.toLocaleString('pl-PL', { month: 'long' }).replace(/^\w/, (c) => c.toUpperCase());
-                          // Find the actual index of the first day of this month in allDayArray
                           const firstDayOfMonth = new Date(yearIndex, monthIndex, 1);
                           const dayIndex = allDayArray.findIndex(d => d.dateValue.getTime() === firstDayOfMonth.getTime());
-                          // Only add if the first day exists in our array (handles edge cases)
                           if (dayIndex !== -1) {
                               ranges.push({ nameMonth, index: dayIndex });
                           }
@@ -272,14 +241,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
                  if (allDayArray.length > 0 && sliderRef.current) {
                      const todayIndex = allDayArray.findIndex((item) => isTodayImpl(item));
                      if (todayIndex !== -1) {
-                         // Use setTimeout to ensure slick is ready
                          setTimeout(() => sliderRef.current?.slickGoTo(todayIndex), 150);
                      }
                  }
              }, [allDayArray]);
 
 
-            // --- Event Handlers (Modal, Delete, Edit - largely unchanged) ---
+            // --- Event Handlers ---
             const handleOpenModal = (mode = 'create', hour = null, eventData = null) => {
                 if (isGlobalClientView && mode === 'create') {
                     toast.error("Przejdź do kalendarza usługodawcy, aby dodać zlecenie.");
@@ -295,39 +263,33 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
                 setIsModalOpen(true);
             };
          
-            // Re-add implementations if needed
              const handleCloseModalImpl = () => {
                  setIsModalOpen(false);
                  setSelectedHourForModal(null);
                  setEditingEvent(null);
-                 // Keep serviceIdForModal as it's tied to context
              };
-             const handleDataSavedImpl = () => { // Refresh data after modal actions
+             const handleDataSavedImpl = () => {
                  handleCloseModalImpl();
-                 fetchEventsForDate(date); // Refresh events based on current context
+                 fetchEventsForDate(date);
              };
-             const handleOrderDeletedImpl = (deletedOrderId) => { // Refresh data after delete
-                 fetchEventsForDate(date); // Refresh events based on current context
+             const handleOrderDeletedImpl = (deletedOrderId) => {
+                 fetchEventsForDate(date);
                  toast.success('Zlecenie usunięte/anulowane.');
              };
              const handleEditOrderImpl = (eventItem) => {
-                  // Allow client to edit their own orders even in global view? Maybe not.
-                  // Provider/Admin can edit.
                   if (currentUserRole === 'client') {
                       toast.error("Skontaktuj się z usługodawcą, aby zmodyfikować zlecenie.");
                       return;
                   }
-                  // Pass the full event object to the modal
                   handleOpenModal('edit', null, eventItem);
              };
              const handleDeleteOrderAdminImpl = async (orderId) => {
                  if (!window.confirm(`Admin: Czy na pewno chcesz usunąć zlecenie ID: ${orderId}?`)) return;
                  const toastId = toast.loading(`Admin: Usuwanie zlecenia ${orderId}...`);
                  try {
-                     // Assuming generic delete handles cancellation/deletion by admin
                      await api.delete(`/orders/${orderId}`);
                      toast.success(`Admin: Zlecenie ${orderId} usunięte/anulowane!`, { id: toastId });
-                     handleOrderDeletedImpl(orderId); // Refresh list
+                     handleOrderDeletedImpl(orderId);
                  } catch (err) {
                      console.error("Admin delete error:", err);
                      toast.error(err.response?.data?.message || err.message || 'Błąd usuwania.', { id: toastId });
@@ -336,22 +298,19 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
              const onClickMonthButtonImpl = (range) => {
                  if (sliderRef.current && range.index !== -1 && range.index < allDayArray.length) {
                      sliderRef.current.slickGoTo(range.index);
-                     onSelectDay(allDayArray[range.index].dateValue); // Also update the selected day
+                     onSelectDay(allDayArray[range.index].dateValue);
                  }
              };
              const onSelectDayImpl = (selectedDateValue) => {
-                 setDate(selectedDateValue); // Update the main date state
-                 // Sync month slider
+                 setDate(selectedDateValue);
                  const selectedMonth = selectedDateValue.getMonth();
                  const selectedYear = selectedDateValue.getFullYear();
                  const monthRangeIndex = dateRanges.findIndex((range) => {
-                      // Ensure range.index is valid before accessing allDayArray
                       if (range.index < 0 || range.index >= allDayArray.length) return false;
                       const rangeDate = new Date(allDayArray[range.index].dateValue);
                       return rangeDate.getMonth() === selectedMonth && rangeDate.getFullYear() === selectedYear;
                  });
                  if (monthRangeIndex !== -1 && sliderSecondRef.current) {
-                     // Use setTimeout to ensure slick is ready
                      setTimeout(() => sliderSecondRef.current?.slickGoTo(monthRangeIndex), 150);
                  }
              };
@@ -365,8 +324,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
              const onSelectDay = onSelectDayImpl;
 
 
-         
-            // Re-add implementations
              const isInProgressImpl = (startAt, endAt, duration) => {
                  const start = new Date(startAt);
                  const end = endAt ? new Date(endAt) : new Date(start.getTime() + (duration || 30) * 60 * 1000);
@@ -375,7 +332,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
              };
              const isDoneImpl = (endAt, startAt, duration) => {
                  const end = endAt ? new Date(endAt) : new Date(new Date(startAt).getTime() + (duration || 30) * 60 * 1000);
-                 if (!end) return false; // Should not happen if startAt is valid
+                 if (!end) return false;
                  const now = new Date();
                  return end <= now;
              };
@@ -383,8 +340,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
              const isDone = isDoneImpl;
 
 
-
-             // Re-add implementations
              const slickConfigImpl = {
                  className: 'daySlick', centerMode: true, centerPadding: '0px', slidesToShow: 10, focusOnSelect: true, infinite: false, arrows: false,
                  responsive: [ { breakpoint: 1024, settings: { slidesToShow: 7 } }, { breakpoint: 600, settings: { slidesToShow: 5 } }, { breakpoint: 480, settings: { slidesToShow: 5 } }, ],
@@ -397,7 +352,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
              const monthSliderSettings = monthSliderSettingsImpl;
 
 
-            // --- Component Selection based on Role (unchanged) ---
+            // --- Component Selection based on Role ---
             let TaskCreateComponent = null;
             if (currentUserRole) {
                 if (currentUserRole === 'provider' || currentUserRole === 'admin') TaskCreateComponent = ProviderTaskCreateOrder;
@@ -413,26 +368,22 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
                 const [hourPart, minute] = hourObj.hour.split(':');
                 const slotDateTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), parseInt(hourPart), parseInt(minute));
 
-                // Find events starting exactly at this slot time
                 const startingEvents = events.filter(event => {
                     if (!event.start) return false;
                     const orderStart = new Date(event.start);
                     return orderStart.getHours() === parseInt(hourPart) && orderStart.getMinutes() === parseInt(minute);
                 });
 
-                // Find any overlapping event with relevant status (accepted or pending)
                 const overlappingBookedEvent = events.find(event =>
                     event.start &&
-                    (event.status === 'accepted' || event.status === 'pending') && // Check for accepted or pending
+                    (event.status === 'accepted' || event.status === 'pending') &&
                     isSlotOverlapping(slotDateTime, event.start, event.end, event.service?.duration)
                 );
 
                 const isPastSlot = slotDateTime < new Date();
 
-                // 1. Render starting events using appropriate component
                 if (startingEvents.length > 0) {
                     return startingEvents.map((item) => {
-                        // Determine component based on role
                         const EventComp = (currentUserRole === 'provider' || currentUserRole === 'admin') ? ProviderSingleEventWrapper : ClientSingleEvent;
                         if (!EventComp) return <div key={item.id}>Błąd ładowania...</div>;
 
@@ -453,30 +404,24 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
                         return <EventComp {...commonProps} {...adminProps} />;
                     });
                 }
-
-                // 2. Render yellow button for overlapping booked slots (if not already rendered as starting)
-                // Status 'accepted' or 'pending' indicates booked/blocked time
                 else if (overlappingBookedEvent) {
                     const eventName = overlappingBookedEvent.service?.name || overlappingBookedEvent.title || 'Zarezerwowane';
                     return (
                         <button
-                            disabled // Non-functional button
+                            disabled
                             className="w-full h-full p-2 rounded-lg bg-yellow-500 dark:bg-yellow-600 text-yellow-900 dark:text-yellow-100 text-center text-sm font-medium flex items-center justify-center gap-1 cursor-not-allowed truncate"
-                            title={eventName} // Show full name on hover
+                            title={eventName}
                         >
                             <ClockIcon size={14} className="flex-shrink-0" />
                             <span className="truncate">{eventName}</span>
                         </button>
                     );
                 }
-
-                // 3. Handle empty slots (past or future)
                 else {
-                    if (isPastSlot && currentUserRole !== 'admin') { // Admin might still want to interact with past slots?
+                    if (isPastSlot && currentUserRole !== 'admin') {
                         return <div className="text-gray-400 dark:text-gray-500 p-2 text-center text-sm italic h-full flex items-center justify-center">Miniony termin</div>;
                     }
 
-                    // Determine if the slot is clickable based on role and context
                     const canBook = (currentUserRole === 'client' && isViewingSpecificProvider) ||
                                     (currentUserRole === 'provider' && !isViewingSpecificProvider) ||
                                     (currentUserRole === 'admin' && isViewingSpecificProvider);
@@ -496,7 +441,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
                             </button>
                         );
                     } else {
-                        // Non-clickable "Wolne" (e.g., global client view)
                         const label = isGlobalClientView ? "Wolne (Twoje)" : "Wolne";
                         return <div className="text-gray-500 p-2 text-center rounded-lg border border-dashed border-gray-600 h-full flex items-center justify-center">{label}</div>;
                     }
@@ -504,13 +448,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
             };
 
 
-            // Determine background color based on context
             const bgColor = isViewingSpecificProvider ? 'bg-neutral-100 dark:bg-neutral-900' : 'bg-slate-200 dark:bg-slate-800';
             const textColor = isViewingSpecificProvider ? 'text-black dark:text-white' : 'text-black dark:text-white';
 
-            // Determine Page Title based on context
-            let pageTitle = 'Kalendarz'; // Default
-            // TODO: Fetch provider name if viewing specific provider
+            let pageTitle = 'Kalendarz';
             const providerName = isViewingSpecificProvider ? `Usługodawcy #${providerIdToFetch}` : '';
 
             if (!storedToken) pageTitle = 'Brak dostępu';
@@ -519,12 +460,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
             else if (currentUserRole === 'provider') pageTitle = 'Twój Kalendarz';
             else if (currentUserRole === 'admin' && isViewingSpecificProvider) pageTitle = `Kalendarz ${providerName} (Admin)`;
 
+            // Define isEditMode based on modalMode
+            const isEditMode = modalMode === 'edit';
 
             return (
                 <section className={`${bgColor} ${textColor} overflow-hidden min-h-screen flex flex-col`}>
-                    {/* Navbar placeholder */}
-                    {/* <Navbar color={navColor} lgColor={'fill-sky-500'} /> */}
-
                     <main className={`flex-1 items-center content-center justify-center overflow-hidden duration-300 ${isModalOpen ? 'blur-sm pointer-events-none' : 'blur-0'}`}>
                         <div className="text-center my-4 md:my-6">
                             <p className={`whitespace-nowrap text-xl md:text-2xl font-bold ${isViewingSpecificProvider ? 'text-neutral-700 dark:text-neutral-200' : 'text-gray-800 dark:text-gray-100'}`}>
@@ -541,7 +481,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
                             </div>
                         )}
 
-                        {/* Month Slider */}
                         <div className="flex flex-col relative mb-4 px-4">
                             <div className={`absolute z-[1] right-4 top-0 bottom-0 w-16 sm:w-24 bg-gradient-to-l ${isViewingSpecificProvider ? 'from-neutral-100 dark:from-neutral-900' : 'from-slate-200 dark:from-slate-800'} to-transparent pointer-events-none`}></div>
                             <div className={`absolute z-[1] left-4 top-0 bottom-0 w-16 sm:w-24 bg-gradient-to-r ${isViewingSpecificProvider ? 'from-neutral-100 dark:from-neutral-900' : 'from-slate-200 dark:from-slate-800'} to-transparent pointer-events-none`}></div>
@@ -556,7 +495,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
                             </Slider>
                         </div>
 
-                        {/* Day Slider */}
                         <div className="text-element-meetings mb-4 px-4">
                             <div className="whitespace-nowrap py-1 pb-5 relative">
                                 <div className={`absolute z-[1] right-4 top-0 bottom-0 w-16 sm:w-24 bg-gradient-to-l ${isViewingSpecificProvider ? 'from-neutral-100 dark:from-neutral-900' : 'from-slate-200 dark:from-slate-800'} to-transparent pointer-events-none`}></div>
@@ -569,7 +507,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
                                                     <div className="py-2 mx-auto text-center font-medium text-gray-500 dark:text-gray-400 text-xs uppercase">
                                                         {days.dayName.slice(0, 3)}
                                                     </div>
-                                                    <div className={`w-10 h-10 mx-auto daySlick text-sm flex items-center justify-center rounded-full font-semibold duration-300 transition-all ease-in ${ days.dateValue.toDateString() === date.toDateString() ? 'bg-sky-600 text-white shadow-md' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' } ${isToday(days) ? 'border-2 border-sky-500' : ''}`}>
+                                                    <div className={`w-10 h-10 mx-auto daySlick text-sm flex items-center justify-center rounded-full font-semibold duration-300 transition-all ease-in ${ days.dateValue.toDateString() === date.toDateString() ? 'bg-sky-600 text-white shadow-md' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' } ${isTodayImpl(days) ? 'border-2 border-sky-500' : ''}`}>
                                                         {days.day}
                                                     </div>
                                                 </div>
@@ -579,9 +517,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
                                 </Slider>
                             </div>
 
-                            {/* Orders/Hours List */}
                             <div className="bg-gray-800 dark:bg-gray-900 text-white pb-6 px-2 md:px-4 rounded-lg shadow-inner">
-                                {/* Add buttons for Provider/Admin */}
                                  {(currentUserRole === 'provider' && !isViewingSpecificProvider) && (
                                     <div className="flex justify-center py-4 border-b border-gray-700 mb-4">
                                         <button
@@ -603,7 +539,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
                                     </div>
                                  )}
 
-                                {/* Show feedback only if viewing specific provider */}
                                 {isViewingSpecificProvider && feedback.length > 0 && (
                                     <div className="w-full flex py-4 justify-center scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 overflow-x-auto relative z-[1] border-b border-gray-700 mb-4">
                                         {feedback.map((fb) => (
@@ -614,7 +549,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
                                     </div>
                                 )}
 
-                                {/* Hours Grid */}
                                 <div className="mt-2 mx-1">
                                     {loading ? (
                                         <div className="flex justify-center items-center h-64">
@@ -625,7 +559,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
                                         <p className="text-center text-gray-500 py-10">Musisz być zalogowany.</p>
                                     ) : hoursArray.length > 0 ? (
                                         hoursArray.map((hourObj, index) => (
-                                            <div className="flex w-full mx-auto mb-2 min-h-[4rem]" key={index}> {/* Ensure consistent height */}
+                                            <div className="flex w-full mx-auto mb-2 min-h-[4rem]" key={index}>
                                                 <div className="flex-shrink-0 w-16 border-r border-gray-700 pr-2 text-right">
                                                     <div className="content-center items-center pt-2 font-medium text-sm text-gray-400">
                                                         {hourObj.hour}
@@ -644,7 +578,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
                         </div>
                     </main>
 
-                    {/* Unified Modal */}
                     {isModalOpen && currentUserRole && TaskCreateComponent && (
                         <div
                             className={`flex fixed inset-0 z-50 items-center justify-center transition-opacity duration-300 ease-in ${
@@ -666,12 +599,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
                                     selectedHour={selectedHourForModal}
                                     onOrderCreated={handleDataSaved}
                                     onOrderUpdated={handleDataSaved}
-                                    initialData={editingEvent} // Pass full event object for editing
+                                    initialData={editingEvent}
                                     serviceProviderId={isGlobalClientView ? null : providerIdToFetch}
-                                    // Pass correct clientId based on context and mode
                                     clientId={isEditMode ? editingEvent?.clientId : (currentUserRole === 'client' ? currentUserId : null)}
                                     isAdmin={currentUserRole === 'admin'}
-                                    initialServiceId={serviceIdForModal} // Pass pre-selected service ID
+                                    initialServiceId={serviceIdForModal}
                                 />
                             </div>
                         </div>

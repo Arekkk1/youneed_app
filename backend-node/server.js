@@ -3,8 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const passport = require('passport');
 const path = require('path');
-const db = require('./models'); // Import Sequelize instance and models
-const { logAuditAction } = require('./utils/audit'); // Import audit logger
+const db = require('./models');
+const { logAuditAction } = require('./utils/audit');
 
 // Import Routes
 const authRoutes = require('./routes/auth');
@@ -16,7 +16,6 @@ const commonRoutes = require('./routes/commonRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
 const feedbackRoutes = require('./routes/feedbackRoutes');
-// const notificationRoutes = require('./routes/notificationRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const searchRoutes = require('./routes/searchRoutes');
 const smsRoutes = require('./routes/sms');
@@ -29,10 +28,20 @@ const app = express();
 require('./config/passport')(passport);
 
 // CORS Configuration
-const allowedOrigins = [process.env.FRONTEND_URL || 'http://49.13.68.62:5173']; // FRONTEND_URL może być nadal potrzebny, jeśli Coolify wystawia frontend pod innym adresem URL niż backend API
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://localhost:5173',
+  'https://49.13.68.62:5173',
+  'https://youneed.com.pl',
+  'https://api.youneed.com.pl',
+].filter(Boolean);
+
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    if (process.env.NODE_ENV !== 'production' && !origin) {
+      return callback(null, true);
+    }
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
       callback(null, true);
     } else {
       console.warn(`CORS blocked for origin: ${origin}`);
@@ -43,27 +52,12 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// Trasy API
-app.get('/api', (req, res) => {
-  res.json({ message: 'Welcome to the API' });
-});
-
 // Middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(passport.initialize());
 
-// --- Serwowanie Plików Statycznych Frontendu ---
-// Serwuj pliki statyczne z katalogu 'public' (gdzie skopiowaliśmy build frontendu)
-const publicPath = path.join(__dirname, 'public');
-console.log(`Serving static files from: ${publicPath}`); // Logowanie ścieżki
-app.use(express.static(publicPath));
-// ---------------------------------------------
-
-// Serve static files from the 'uploads' directory (jeśli nadal potrzebne)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// API Routes (MUSZĄ być przed catch-all route)
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/provider', providerRoutes);
@@ -73,37 +67,44 @@ app.use('/api/common', commonRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/feedback', feedbackRoutes);
-// app.use('/api/notifications', notificationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/sms', smsRoutes);
 app.use('/api/email', emailVerificationRoutes);
 app.use('/api/events', eventRoutes);
 
-// Basic Route (może zostać nadpisany przez catch-all, ale zostawiam dla testów API)
 app.get('/api/status', (req, res) => {
-  res.send('YouNeed Backend API is running!');
+  res.json({ status: 'success', message: 'YouNeed Backend API is running!' });
 });
 
-// --- Catch-all Route dla SPA (React Router) ---
-// Ta trasa musi być OSTATNIA, po wszystkich trasach API i serwowaniu plików statycznych
+// Serve Static Files
+app.use('/uploads', express.static(path.join(__dirname, 'Uploads')));
+const publicPath = path.join(__dirname, 'public');
+console.log(`Serving static files from: ${publicPath}`);
+app.use(express.static(publicPath));
+
+// Catch-all Route for SPA (React Router)
 app.get('*', (req, res) => {
+  if (req.path.startsWith('/api/')) {
+    console.warn(`[Server Catch-All] Unhandled API route attempt: ${req.path}`);
+    logAuditAction(req.user?.id || null, 'unhandled_api_route', { path: req.path, ip: req.ip }).catch(console.error);
+    return res.status(404).json({ status: 'error', message: 'API endpoint not found' });
+  }
+
   const indexPath = path.join(__dirname, 'public', 'index.html');
-  console.log(`Serving index.html for route: ${req.path} from ${indexPath}`); // Logowanie
+  console.log(`Serving index.html for route: ${req.path} from ${indexPath}`);
   res.sendFile(indexPath, (err) => {
     if (err) {
-        console.error("Error sending index.html:", err);
-        // Log error using audit logger if appropriate
-        logAuditAction(req.user?.id || null, 'server_error', { path: req.path, error: `Failed to send index.html: ${err.message}`, ip: req.ip }).catch(console.error);
-        res.status(500).send('Internal Server Error');
+      console.error('Error sending index.html:', err);
+      logAuditAction(req.user?.id || null, 'server_error', { path: req.path, error: `Failed to send index.html: ${err.message}`, ip: req.ip }).catch(console.error);
+      res.status(500).send('Internal Server Error');
     }
   });
 });
-// ---------------------------------------------
 
 // Global Error Handler
 app.use((err, req, res, next) => {
-  console.error("Global Error Handler:", err.stack);
+  console.error('Global Error Handler:', err.stack);
   logAuditAction(req.user?.id || null, 'server_error', { path: req.path, error: err.message, ip: req.ip }).catch(console.error);
   res.status(err.status || 500).json({
     status: 'error',
@@ -112,16 +113,14 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Database Synchronization and Server Start
 const PORT = process.env.PORT || 5000;
 
-// ZMIANA: Używamy db.sequelize.sync() bez { alter: true } aby uniknąć konfliktów z migracjami.
-db.sequelize.sync() // Usunięto { alter: process.env.NODE_ENV !== 'production' }
+db.sequelize.sync()
   .then(() => {
-    console.log('Database synchronized successfully (tables created if not exist, no alterations).');
+    console.log('Database synchronized successfully.');
     app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-      console.log(`Frontend URL allowed by CORS: ${process.env.FRONTEND_URL || 'Not Set (Using same origin)'}`);
+      console.log(`Server is running on http://0.0.0.0:${PORT}`);
+      console.log(`Allowed CORS origins: ${allowedOrigins.join(', ')}`);
       console.log(`Serving static files from: ${publicPath}`);
       console.log(`Serving index.html for SPA routes from: ${path.join(publicPath, 'index.html')}`);
     });
@@ -131,6 +130,5 @@ db.sequelize.sync() // Usunięto { alter: process.env.NODE_ENV !== 'production' 
     logAuditAction(null, 'db_sync_error', { error: err.message }).catch(console.error);
     process.exit(1);
   });
-
 
 module.exports = app;

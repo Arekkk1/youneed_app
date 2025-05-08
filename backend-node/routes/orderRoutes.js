@@ -17,10 +17,23 @@ const express = require('express');
 
     // --- Get Orders (based on role) ---
     router.get('/', authenticate, async (req, res) => {
+      // DETAILED LOGGING HERE
+      console.log('[OrderRoutes DEBUG /] --- Route Handler Start ---');
+      console.log('[OrderRoutes DEBUG /] req.user object:', JSON.stringify(req.user, null, 2));
+      if (req.user) {
+          console.log(`[OrderRoutes DEBUG /] req.user.id: ${req.user.id}, Type: ${typeof req.user.id}`);
+          console.log(`[OrderRoutes DEBUG /] req.user.role: "${req.user.role}", Type: ${typeof req.user.role}`);
+      } else {
+          console.log('[OrderRoutes DEBUG /] req.user is undefined or null');
+      }
+      const userId = req.user ? req.user.id : null;
+      const userRole = req.user ? req.user.role : null;
+      console.log(`[OrderRoutes DEBUG /] Extracted userId: ${userId}, userRole: "${userRole}"`);
+
       try {
         const where = {};
-        const userRole = req.user.role;
-        const userId = req.user.id;
+        // const userRole = req.user.role; // Already defined above
+        // const userId = req.user.id; // Already defined above
 
         if (userRole === 'provider') {
           where.providerId = userId;
@@ -35,7 +48,7 @@ const express = require('express');
           include: [
             { model: User, as: 'Client', attributes: ['id', 'email', 'firstName', 'lastName', 'companyName'] },
             { model: User, as: 'Provider', attributes: ['id', 'email', 'firstName', 'lastName', 'companyName'] },
-            { model: Service, attributes: ['id', 'name', 'price', 'duration'] }, // Added duration
+            { model: Service, as: 'Service', attributes: ['id', 'name', 'price', 'duration'] }, // Dodano as: 'Service'
           ],
           order: [['startAt', 'ASC'], ['createdAt', 'DESC']],
         });
@@ -60,45 +73,60 @@ const express = require('express');
     });
 
     // --- Get Recent Orders (for Dashboard) ---
-    // ** FIX: Moved this route BEFORE /:id to avoid conflict **
     router.get('/recent', authenticate, async (req, res) => {
-      const userId = req.user.id;
-      const userRole = req.user.role;
+      // DETAILED LOGGING HERE
+      console.log('[OrderRoutes DEBUG /recent] --- Route Handler Start ---');
+      console.log('[OrderRoutes DEBUG /recent] req.user object:', JSON.stringify(req.user, null, 2));
+      if (req.user) {
+          console.log(`[OrderRoutes DEBUG /recent] req.user.id: ${req.user.id}, Type: ${typeof req.user.id}`);
+          console.log(`[OrderRoutes DEBUG /recent] req.user.role: "${req.user.role}", Type: ${typeof req.user.role}`);
+      } else {
+          console.log('[OrderRoutes DEBUG /recent] req.user is undefined or null');
+      }
+      const userId = req.user ? req.user.id : null;
+      const userRole = req.user ? req.user.role : null; // This is the critical assignment
+      
+      // This log line will now use the userRole defined just above
       console.log(`[DEBUG] /orders/recent called by user ${userId}, role: ${userRole}`);
+
 
       try {
         let where = {};
 
-        if (!userRole) {
-            console.error(`[ERROR] /orders/recent: Missing user role for user ${userId}`);
+        if (!userRole) { // Check the locally defined userRole
+            console.error(`[ERROR] /orders/recent: Missing user role for user ${userId}. Value of userRole: "${userRole}"`);
             return sendErrorResponse(res, 400, 'User role not found in token.');
         }
 
         if (userRole === 'provider') {
+          console.log('[OrderRoutes DEBUG /recent] Role is "provider"');
           where.providerId = userId;
         } else if (userRole === 'client') {
+          console.log('[OrderRoutes DEBUG /recent] Role is "client"');
           where.clientId = userId;
         } else if (userRole !== 'admin') {
-          // Allow admin to see all recent orders if needed, otherwise deny
-          // For now, let's assume admin shouldn't see this specific view
+          console.log(`[OrderRoutes DEBUG /recent] Role is "${userRole}" - Access denied`);
           return sendErrorResponse(res, 403, 'Access denied for this role');
+        } else {
+           console.log('[OrderRoutes DEBUG /recent] Role is "admin"');
+           // Admin sees all recent if not denied above
         }
+
 
         const orders = await Order.findAll({
           where,
           include: [
-            { model: User, as: 'Client', attributes: ['id', 'firstName', 'lastName', 'companyName', 'email'] }, // Added email
-            { model: User, as: 'Provider', attributes: ['id', 'firstName', 'lastName', 'companyName', 'email'] }, // Added email
-            { model: Service, attributes: ['id', 'name'] },
+            { model: User, as: 'Client', attributes: ['id', 'firstName', 'lastName', 'companyName', 'email'] }, 
+            { model: User, as: 'Provider', attributes: ['id', 'firstName', 'lastName', 'companyName', 'email'] }, 
+            { model: Service, as: 'Service', attributes: ['id', 'name'] }, // Dodano as: 'Service'
           ],
           order: [['createdAt', 'DESC']],
-          limit: 10, // Keep limit for recent orders
+          limit: 10, 
         });
 
         const formattedOrders = orders.map(order => ({
           id: order.id,
           title: order.title,
-          // Use helper function for consistency
           clientName: order.Client ? getUserName(order.Client) : 'N/A',
           providerName: order.Provider ? getUserName(order.Provider) : 'N/A',
           serviceName: order.Service?.name || 'N/A',
@@ -125,9 +153,21 @@ const express = require('express');
 
     // --- Get Order Statistics (Sales/Expenses) ---
     router.get('/stats', authenticate, async (req, res) => {
+      console.log('[OrderRoutes DEBUG /stats] --- Route Handler Start ---');
+      console.log('[OrderRoutes DEBUG /stats] req.user object:', JSON.stringify(req.user, null, 2));
+      if (req.user) {
+          console.log(`[OrderRoutes DEBUG /stats] req.user.id: ${req.user.id}, Type: ${typeof req.user.id}`);
+          console.log(`[OrderRoutes DEBUG /stats] req.user.role: "${req.user.role}", Type: ${typeof req.user.role}`);
+      } else {
+          console.log('[OrderRoutes DEBUG /stats] req.user is undefined or null');
+      }
+      const userId = req.user ? req.user.id : null;
+      const userRole = req.user ? req.user.role : null;
+      console.log(`[OrderRoutes DEBUG /stats] Extracted userId: ${userId}, userRole: "${userRole}"`);
+
       try {
-        const userId = req.user.id;
-        const userRole = req.user.role;
+        // const userId = req.user.id; // Defined above
+        // const userRole = req.user.role; // Defined above
         let stats = { pending: 0, accepted: 0, completed: 0, rejected: 0, cancelled: 0, totalValue: 0, valueLabel: 'Value' };
 
         let whereBase = {};
@@ -140,8 +180,7 @@ const express = require('express');
           whereBase = { clientId: userId };
           valueLabel = 'Expenses';
         } else if (userRole === 'admin') {
-           // Admin stats might need different logic, e.g., total platform revenue
-           whereBase = { status: 'completed' }; // Example: total completed value across platform
+           whereBase = { status: 'completed' }; 
            valueLabel = 'Total Revenue';
         } else {
            return sendErrorResponse(res, 403, 'Access denied');
@@ -155,19 +194,16 @@ const express = require('express');
         });
         statusCounts.forEach(item => {
             if (stats.hasOwnProperty(item.status)) {
-                // Ensure count is treated as a number
                 stats[item.status] = parseInt(item.count, 10) || 0;
             }
         });
 
-        // Calculate total value based on completed orders and associated service price
         const valueResult = await Order.findOne({
            attributes: [[db.sequelize.fn('SUM', db.sequelize.col('Service.price')), 'total']],
-           include: [{ model: Service, attributes: [], required: true }], // Ensure join with Service
-           where: { ...whereBase, status: 'completed' }, // Only sum completed orders
+           include: [{ model: Service, as: 'Service', attributes: [], required: true }], // Dodano as: 'Service'
+           where: { ...whereBase, status: 'completed' }, 
            raw: true,
         });
-        // Ensure totalValue is a number, default to 0 if null/undefined
         stats.totalValue = parseFloat(valueResult?.total || 0);
         stats.valueLabel = valueLabel;
 
@@ -186,9 +222,21 @@ const express = require('express');
 
     // --- Get Daily Order Count (for charts) ---
     router.get('/daily-count', authenticate, async (req, res) => {
+      console.log('[OrderRoutes DEBUG /daily-count] --- Route Handler Start ---');
+      console.log('[OrderRoutes DEBUG /daily-count] req.user object:', JSON.stringify(req.user, null, 2));
+      if (req.user) {
+          console.log(`[OrderRoutes DEBUG /daily-count] req.user.id: ${req.user.id}, Type: ${typeof req.user.id}`);
+          console.log(`[OrderRoutes DEBUG /daily-count] req.user.role: "${req.user.role}", Type: ${typeof req.user.role}`);
+      } else {
+          console.log('[OrderRoutes DEBUG /daily-count] req.user is undefined or null');
+      }
+      const userId = req.user ? req.user.id : null;
+      const userRole = req.user ? req.user.role : null;
+      console.log(`[OrderRoutes DEBUG /daily-count] Extracted userId: ${userId}, userRole: "${userRole}"`);
+
       try {
-        const userId = req.user.id;
-        const userRole = req.user.role;
+        // const userId = req.user.id; // Defined above
+        // const userRole = req.user.role; // Defined above
         let where = {};
 
         if (userRole === 'provider') {
@@ -198,29 +246,26 @@ const express = require('express');
         } else if (userRole !== 'admin') {
           return sendErrorResponse(res, 403, 'Access denied');
         }
-        // Admin might see aggregated daily counts across all users
-
+        
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        sevenDaysAgo.setHours(0, 0, 0, 0); // Start of the day 7 days ago
+        sevenDaysAgo.setHours(0, 0, 0, 0); 
 
         where.createdAt = { [Op.gte]: sevenDaysAgo };
 
         const dailyCounts = await Order.findAll({
           where,
           attributes: [
-            // Use DATE function to group by date part only
             [db.sequelize.fn('DATE', db.sequelize.col('createdAt')), 'date'],
             [db.sequelize.fn('COUNT', db.sequelize.col('id')), 'count'],
           ],
           group: [db.sequelize.fn('DATE', db.sequelize.col('createdAt'))],
-          order: [[db.sequelize.fn('DATE', db.sequelize.col('createdAt')), 'ASC']], // Order by date
+          order: [[db.sequelize.fn('DATE', db.sequelize.col('createdAt')), 'ASC']], 
           raw: true,
         });
 
-         // Format the date to YYYY-MM-DD for consistency if needed by the frontend chart library
          const formattedCounts = dailyCounts.map(item => ({
-             date: item.date, // Keep as is or format: new Date(item.date).toISOString().split('T')[0],
+             date: item.date, 
              count: parseInt(item.count, 10) || 0
          }));
 
@@ -240,15 +285,27 @@ const express = require('express');
 
 
     // --- Get Single Order Details ---
-    // ** IMPORTANT: This route MUST come AFTER specific routes like /recent, /stats etc. **
     router.get('/:id', authenticate, async (req, res) => {
-      console.log(`[DEBUG] GET /orders/:id called with id: ${req.params.id}`); // Keep this log
+      console.log(`[DEBUG] GET /orders/:id called with id: ${req.params.id}`); 
+      // DETAILED LOGGING HERE
+      console.log('[OrderRoutes DEBUG /:id] --- Route Handler Start ---');
+      console.log('[OrderRoutes DEBUG /:id] req.user object:', JSON.stringify(req.user, null, 2));
+      if (req.user) {
+          console.log(`[OrderRoutes DEBUG /:id] req.user.id: ${req.user.id}, Type: ${typeof req.user.id}`);
+          console.log(`[OrderRoutes DEBUG /:id] req.user.role: "${req.user.role}", Type: ${typeof req.user.role}`);
+      } else {
+          console.log('[OrderRoutes DEBUG /:id] req.user is undefined or null');
+      }
+      const currentUserId = req.user ? req.user.id : null; // Renamed to avoid conflict with order.clientId etc.
+      const currentUserRole = req.user ? req.user.role : null;
+      console.log(`[OrderRoutes DEBUG /:id] Extracted currentUserId: ${currentUserId}, currentUserRole: "${currentUserRole}"`);
+
+
       const orderId = parseInt(req.params.id, 10);
 
-      // Check if parsing resulted in NaN (e.g., if id was "recent")
       if (isNaN(orderId)) {
         console.error(`[ERROR] Invalid order ID received: ${req.params.id}`);
-        return sendErrorResponse(res, 400, 'Invalid order ID format'); // More specific error
+        return sendErrorResponse(res, 400, 'Invalid order ID format'); 
       }
 
       try {
@@ -256,31 +313,29 @@ const express = require('express');
           include: [
             { model: User, as: 'Client', attributes: ['id', 'email', 'firstName', 'lastName', 'companyName', 'phoneNumber'] },
             { model: User, as: 'Provider', attributes: ['id', 'email', 'firstName', 'lastName', 'companyName', 'phoneNumber'] },
-            { model: Service, attributes: ['id', 'name', 'price', 'description', 'duration', 'category'] },
+            { model: Service, as: 'Service', attributes: ['id', 'name', 'price', 'description', 'duration', 'category'] }, // Dodano as: 'Service'
             { model: Feedback, attributes: ['id', 'rating', 'comment', 'createdAt'] }
           ],
         });
 
         if (!order) {
            if (typeof logAuditAction === 'function') {
-              await logAuditAction(req.user.id, 'fetch_order_detail_failed_not_found', { orderId }, req.ip);
+              await logAuditAction(currentUserId, 'fetch_order_detail_failed_not_found', { orderId }, req.ip);
            }
           return sendErrorResponse(res, 404, 'Order not found');
         }
 
-        // Authorization check: Ensure the logged-in user is related to the order or is an admin
-        const isClient = req.user.role === 'client' && order.clientId === req.user.id;
-        const isProvider = req.user.role === 'provider' && order.providerId === req.user.id;
-        const isAdmin = req.user.role === 'admin';
+        const isClient = currentUserRole === 'client' && order.clientId === currentUserId;
+        const isProvider = currentUserRole === 'provider' && order.providerId === currentUserId;
+        const isAdmin = currentUserRole === 'admin';
 
         if (!isClient && !isProvider && !isAdmin) {
            if (typeof logAuditAction === 'function') {
-              await logAuditAction(req.user.id, 'fetch_order_detail_failed_unauthorized', { orderId, targetClientId: order.clientId, targetProviderId: order.providerId }, req.ip);
+              await logAuditAction(currentUserId, 'fetch_order_detail_failed_unauthorized', { orderId, targetClientId: order.clientId, targetProviderId: order.providerId }, req.ip);
            }
           return sendErrorResponse(res, 403, 'Access denied to this order');
         }
 
-        // Format response using helper function
         const formattedOrder = {
           ...order.toJSON(),
           Client: order.Client ? { ...order.Client.toJSON(), name: getUserName(order.Client) } : null,
@@ -288,43 +343,51 @@ const express = require('express');
         };
 
          if (typeof logAuditAction === 'function') {
-            await logAuditAction(req.user.id, 'fetch_order_detail_success', { orderId }, req.ip);
+            await logAuditAction(currentUserId, 'fetch_order_detail_success', { orderId }, req.ip);
          }
         sendSuccessResponse(res, formattedOrder, 'Order details fetched successfully');
       } catch (err) {
-        console.error(`Error fetching order detail ${orderId} for user ${req.user.id}:`, err);
+        console.error(`Error fetching order detail ${orderId} for user ${currentUserId}:`, err);
          if (typeof logAuditAction === 'function') {
-            await logAuditAction(req.user.id, 'fetch_order_detail_failed', { orderId, error: err.message }, req.ip);
+            await logAuditAction(currentUserId, 'fetch_order_detail_failed', { orderId, error: err.message }, req.ip);
          }
         sendErrorResponse(res, 500, 'Failed to fetch order details', err);
       }
     });
 
     // --- Create Order ---
-    // Allows clients to create orders for providers
-    // Allows providers to create orders (potentially for clients, or just block time)
     router.post('/', authenticate, authMiddleware(['client', 'provider', 'admin']), async (req, res) => {
-      // Added 'admin' to authMiddleware if admins can also create orders
+      console.log('[OrderRoutes DEBUG POST /] --- Route Handler Start ---');
+      console.log('[OrderRoutes DEBUG POST /] req.user object:', JSON.stringify(req.user, null, 2));
+      if (req.user) {
+          console.log(`[OrderRoutes DEBUG POST /] req.user.id: ${req.user.id}, Type: ${typeof req.user.id}`);
+          console.log(`[OrderRoutes DEBUG POST /] req.user.role: "${req.user.role}", Type: ${typeof req.user.role}`);
+      } else {
+          console.log('[OrderRoutes DEBUG POST /] req.user is undefined or null');
+      }
+      const userRole = req.user ? req.user.role : null;
+      const userId = req.user ? req.user.id : null;
+      console.log(`[OrderRoutes DEBUG POST /] Extracted userId: ${userId}, userRole: "${userRole}"`);
+
+
       const {
           serviceId,
-          title, // Title might be optional if derived from service
-          description, // Optional notes from frontend
+          title, 
+          description, 
           startAt,
-          // endAt, // endAt is usually calculated based on service duration
-          providerId, // Required if client is creating
-          clientId, // Required if provider is creating FOR a client
-          notes, // Use 'notes' from frontend form
-          duration // Pass duration from frontend if available
+          providerId, 
+          clientId, 
+          notes, 
+          duration 
       } = req.body;
-      const userRole = req.user.role;
-      const userId = req.user.id; // ID of the logged-in user making the request
+      // const userRole = req.user.role; // Defined above
+      // const userId = req.user.id; // Defined above
 
       console.log(`[POST /orders] Request received from user ${userId} (Role: ${userRole})`);
       console.log(`[POST /orders] Body:`, req.body);
 
 
       try {
-        // --- Validation ---
         if (!serviceId || !startAt) {
           return sendErrorResponse(res, 400, 'Missing required fields: serviceId, startAt');
         }
@@ -332,12 +395,7 @@ const express = require('express');
         if (isNaN(startDate.getTime())) {
             return sendErrorResponse(res, 400, 'Invalid start date format');
         }
-        // Optional: Validate start date is not in the past (allow buffer?)
-        // if (startDate < new Date()) {
-        //     return sendErrorResponse(res, 400, 'Start date cannot be in the past');
-        // }
-
-        // --- Fetch Service Details ---
+        
         const service = await Service.findByPk(serviceId);
         if (!service) {
            if (typeof logAuditAction === 'function') {
@@ -346,25 +404,22 @@ const express = require('express');
           return sendErrorResponse(res, 404, 'Service not found');
         }
 
-        // --- Determine Order Details based on Role ---
         let orderData = {
-          title: title || service.name, // Use provided title or default to service name
-          description: description || notes || null, // Use description or notes
+          title: title || service.name, 
+          description: description || notes || null, 
           startAt: startDate,
-          // Calculate endAt based on service duration
-          endAt: new Date(startDate.getTime() + (duration || service.duration || 30) * 60 * 1000), // Use passed duration, service duration, or default 30 mins
-          status: 'pending', // Default status for new orders
+          endAt: new Date(startDate.getTime() + (duration || service.duration || 30) * 60 * 1000), 
+          status: 'pending', 
           serviceId: service.id,
-          totalAmount: service.price, // Store the price at the time of booking
-          notes: notes || null, // Store notes separately if needed
+          totalAmount: service.price, 
+          notes: notes || null, 
         };
 
         let notificationRecipientId = null;
         let notificationMessage = '';
-        const creatorName = getUserName(req.user); // Get creator's name
+        const creatorName = getUserName(req.user); 
 
         if (userRole === 'client') {
-            // Client is creating the order
             if (!providerId || parseInt(providerId, 10) !== service.providerId) {
                 console.error(`[POST /orders] Client ${userId} attempting to book service ${serviceId} for incorrect provider ${providerId} (Service belongs to ${service.providerId})`);
                  if (typeof logAuditAction === 'function') {
@@ -376,23 +431,21 @@ const express = require('express');
             if (!providerExists || providerExists.role !== 'provider') {
                  return sendErrorResponse(res, 404, 'Provider not found.');
             }
-            orderData.clientId = userId; // The logged-in client
+            orderData.clientId = userId; 
             orderData.providerId = parseInt(providerId, 10);
             notificationRecipientId = orderData.providerId;
             notificationMessage = `Nowe zlecenie "${orderData.title}" od klienta ${creatorName}.`;
             console.log(`[POST /orders] Client ${userId} creating order for provider ${orderData.providerId}`);
 
         } else if (userRole === 'provider') {
-            // Provider is creating the order (e.g., blocking time or booking for a client)
             if (service.providerId !== userId) {
                  if (typeof logAuditAction === 'function') {
                     await logAuditAction(userId, 'create_order_failed_provider_mismatch', { serviceId, expectedProviderId: service.providerId }, req.ip);
                  }
                 return sendErrorResponse(res, 403, 'Provider can only create orders for their own services');
             }
-            orderData.providerId = userId; // The logged-in provider
+            orderData.providerId = userId; 
             if (clientId) {
-                // Provider is booking FOR a specific client
                 const clientExists = await User.findByPk(clientId);
                 if (!clientExists || clientExists.role !== 'client') {
                     return sendErrorResponse(res, 404, 'Specified client not found or is not a client.');
@@ -402,17 +455,14 @@ const express = require('express');
                 notificationMessage = `Usługodawca ${creatorName} utworzył dla Ciebie nowe zlecenie: ${orderData.title}`;
                 console.log(`[POST /orders] Provider ${userId} creating order for client ${orderData.clientId}`);
             } else {
-                // Provider is blocking time (no client assigned)
-                orderData.clientId = null; // Explicitly set to null
-                orderData.status = 'accepted'; // Provider blocking time is auto-accepted? Or keep pending? Let's keep pending for consistency.
+                orderData.clientId = null; 
+                orderData.status = 'pending'; 
                 console.log(`[POST /orders] Provider ${userId} creating order (blocking time)`);
             }
         } else if (userRole === 'admin') {
-             // Admin creating order - requires both clientId and providerId in request body
              if (!clientId || !providerId) {
                  return sendErrorResponse(res, 400, 'Admin must specify both clientId and providerId.');
              }
-             // Validate client and provider exist and have correct roles
              const [clientExists, providerExists] = await Promise.all([
                  User.findOne({ where: { id: clientId, role: 'client' } }),
                  User.findOne({ where: { id: providerId, role: 'provider' } })
@@ -425,27 +475,20 @@ const express = require('express');
 
              orderData.clientId = parseInt(clientId, 10);
              orderData.providerId = parseInt(providerId, 10);
-             orderData.status = 'accepted'; // Admin-created orders might be auto-accepted?
-             // Notify both client and provider?
-             // notificationRecipientId = [orderData.clientId, orderData.providerId]; // Send to both?
+             orderData.status = 'accepted'; 
              notificationMessage = `Administrator utworzył zlecenie "${orderData.title}".`;
              console.log(`[POST /orders] Admin ${userId} creating order for client ${orderData.clientId} and provider ${orderData.providerId}`);
         } else {
             return sendErrorResponse(res, 403, 'Invalid user role for creating orders');
         }
 
-        // --- Check for Conflicts (Optional but Recommended) ---
-        // Find existing orders for the provider that overlap with the new order's time slot
         const conflictingOrder = await Order.findOne({
             where: {
                 providerId: orderData.providerId,
-                status: { [Op.in]: ['pending', 'accepted', 'in_progress'] }, // Check against non-final statuses
+                status: { [Op.in]: ['pending', 'accepted', 'in_progress'] }, 
                 [Op.or]: [
-                    // Existing order starts within the new order's time
                     { startAt: { [Op.between]: [orderData.startAt, orderData.endAt] } },
-                    // Existing order ends within the new order's time
                     { endAt: { [Op.between]: [orderData.startAt, orderData.endAt] } },
-                    // Existing order completely envelops the new order's time
                     { [Op.and]: [
                         { startAt: { [Op.lte]: orderData.startAt } },
                         { endAt: { [Op.gte]: orderData.endAt } }
@@ -456,11 +499,9 @@ const express = require('express');
 
         if (conflictingOrder) {
             console.warn(`[POST /orders] Conflict detected for provider ${orderData.providerId} at ${orderData.startAt}. Conflicting order ID: ${conflictingOrder.id}`);
-            return sendErrorResponse(res, 409, 'Wybrany termin jest już zajęty lub oczekuje na akceptację.'); // 409 Conflict
+            return sendErrorResponse(res, 409, 'Wybrany termin jest już zajęty lub oczekuje na akceptację.'); 
         }
 
-
-        // --- Create the Order ---
         const order = await Order.create(orderData);
         console.log(`[POST /orders] Order ${order.id} created successfully.`);
 
@@ -468,16 +509,14 @@ const express = require('express');
             await logAuditAction(userId, 'create_order_success', { orderId: order.id, role: userRole, clientId: order.clientId, providerId: order.providerId }, req.ip);
          }
 
-        // --- Send Notification ---
         if (notificationRecipientId && notificationMessage && typeof Notification !== 'undefined') {
           try {
-              // Handle single or multiple recipients if admin creates
               const recipients = Array.isArray(notificationRecipientId) ? notificationRecipientId : [notificationRecipientId];
               for (const recipient of recipients) {
                   await Notification.create({
                     userId: recipient,
                     message: notificationMessage,
-                    type: 'order', // Or 'new_order'
+                    type: 'order', 
                     relatedId: order.id,
                     relatedType: 'order',
                     isRead: false,
@@ -486,19 +525,16 @@ const express = require('express');
               }
           } catch (notificationError) {
               console.error(`Failed to create notification for order ${order.id}:`, notificationError);
-              // Decide if order creation should fail if notification fails (probably not)
           }
         }
 
-        // --- Fetch the created order with associations for the response ---
         const createdOrder = await Order.findByPk(order.id, {
            include: [
              { model: User, as: 'Client', attributes: ['id', 'email', 'firstName', 'lastName', 'companyName'] },
              { model: User, as: 'Provider', attributes: ['id', 'email', 'firstName', 'lastName', 'companyName'] },
-             { model: Service, attributes: ['id', 'name', 'price', 'duration'] }, // Include duration
+             { model: Service, as: 'Service', attributes: ['id', 'name', 'price', 'duration'] }, // Dodano as: 'Service'
            ]
         });
-         // Format response using helper function
          const formattedOrder = {
            ...createdOrder.toJSON(),
            Client: createdOrder.Client ? { ...createdOrder.Client.toJSON(), name: getUserName(createdOrder.Client) } : null,
@@ -512,7 +548,6 @@ const express = require('express');
          if (typeof logAuditAction === 'function') {
             await logAuditAction(req.user?.id, 'create_order_failed', { role: req.user?.role, error: err.message }, req.ip);
          }
-        // Check for specific Sequelize validation errors if needed
         if (err.name === 'SequelizeValidationError') {
              const errors = err.errors.map(e => ({ field: e.path, message: e.message }));
              return sendErrorResponse(res, 400, 'Validation failed', { errors });
@@ -523,19 +558,30 @@ const express = require('express');
 
     // --- Update Order Status (Provider or Client cancelling pending) ---
     router.patch('/:id/status', authenticate, async (req, res) => {
+      console.log('[OrderRoutes DEBUG PATCH /:id/status] --- Route Handler Start ---');
+      console.log('[OrderRoutes DEBUG PATCH /:id/status] req.user object:', JSON.stringify(req.user, null, 2));
+      if (req.user) {
+          console.log(`[OrderRoutes DEBUG PATCH /:id/status] req.user.id: ${req.user.id}, Type: ${typeof req.user.id}`);
+          console.log(`[OrderRoutes DEBUG PATCH /:id/status] req.user.role: "${req.user.role}", Type: ${typeof req.user.role}`);
+      } else {
+          console.log('[OrderRoutes DEBUG PATCH /:id/status] req.user is undefined or null');
+      }
+      const userId = req.user ? req.user.id : null;
+      const userRole = req.user ? req.user.role : null;
+      console.log(`[OrderRoutes DEBUG PATCH /:id/status] Extracted userId: ${userId}, userRole: "${userRole}"`);
+
       const orderId = parseInt(req.params.id, 10);
       if (isNaN(orderId)) {
         return sendErrorResponse(res, 400, 'Invalid order ID');
       }
       const { status } = req.body;
-      const userId = req.user.id;
-      const userRole = req.user.role;
+      // const userId = req.user.id; // Defined above
+      // const userRole = req.user.role; // Defined above
 
-      // Define allowed statuses based on role
       const allowedStatuses = {
           provider: ['accepted', 'rejected', 'completed', 'cancelled'],
-          client: ['cancelled'], // Clients can only cancel pending orders
-          admin: ['pending', 'accepted', 'rejected', 'completed', 'cancelled'] // Admins can potentially change to any status
+          client: ['cancelled'], 
+          admin: ['pending', 'accepted', 'rejected', 'completed', 'cancelled'] 
       };
 
       if (!status || !allowedStatuses[userRole]?.includes(status)) {
@@ -553,8 +599,6 @@ const express = require('express');
         }
 
         const oldStatus = order.status;
-
-        // Authorization and State Transition Logic
         let canUpdate = false;
         let notificationRecipientId = null;
         let notificationMessage = '';
@@ -562,7 +606,6 @@ const express = require('express');
 
 
         if (userRole === 'provider' && order.providerId === userId) {
-            // Provider can accept/reject pending, complete accepted, or cancel pending/accepted
             if ((status === 'accepted' || status === 'rejected') && oldStatus === 'pending') {
                  canUpdate = true;
                  notificationRecipientId = order.clientId;
@@ -579,17 +622,14 @@ const express = require('express');
                  notificationMessage = `Zlecenie "${order.title}" zostało anulowane przez usługodawcę ${updaterName}.`;
             }
         } else if (userRole === 'client' && order.clientId === userId) {
-            // Client can only cancel a pending order
             if (status === 'cancelled' && oldStatus === 'pending') {
                  canUpdate = true;
                  notificationRecipientId = order.providerId;
                  notificationMessage = `Zlecenie "${order.title}" zostało anulowane przez klienta ${updaterName}.`;
             }
         } else if (userRole === 'admin') {
-            // Admin can change status (potentially bypass state checks, use with caution)
-            canUpdate = true; // Or add specific admin rules if needed
-            // Notify both client and provider?
-            notificationRecipientId = [order.clientId, order.providerId].filter(id => id); // Filter out null IDs
+            canUpdate = true; 
+            notificationRecipientId = [order.clientId, order.providerId].filter(id => id); 
             notificationMessage = `Status zlecenia "${order.title}" został zmieniony na "${status}" przez administratora.`;
         }
 
@@ -602,11 +642,9 @@ const express = require('express');
 
 
         if (oldStatus === status) {
-            // No change needed, return success but indicate no change
             return sendSuccessResponse(res, order, 'Order status unchanged');
         }
 
-        // Update status and save
         order.status = status;
         await order.save();
 
@@ -614,12 +652,11 @@ const express = require('express');
             await logAuditAction(userId, 'update_order_status_success', { orderId: order.id, oldStatus, newStatus: status, role: userRole }, req.ip);
          }
 
-        // Send notification to the other party (if applicable)
         if (notificationRecipientId && notificationMessage && typeof Notification !== 'undefined') {
            try {
                 const recipients = Array.isArray(notificationRecipientId) ? notificationRecipientId : [notificationRecipientId];
                 for (const recipient of recipients) {
-                   if (recipient) { // Ensure recipient ID is not null
+                   if (recipient) { 
                        await Notification.create({
                          userId: recipient,
                          message: notificationMessage,
@@ -636,15 +673,13 @@ const express = require('express');
            }
         }
 
-        // Fetch updated order with associations for response
         const updatedOrder = await Order.findByPk(order.id, {
            include: [
              { model: User, as: 'Client', attributes: ['id', 'email', 'firstName', 'lastName', 'companyName'] },
              { model: User, as: 'Provider', attributes: ['id', 'email', 'firstName', 'lastName', 'companyName'] },
-             { model: Service, attributes: ['id', 'name', 'price', 'duration'] }, // Include duration
+             { model: Service, as: 'Service', attributes: ['id', 'name', 'price', 'duration'] }, // Dodano as: 'Service'
            ]
         });
-         // Format response
          const formattedOrder = {
            ...updatedOrder.toJSON(),
            Client: updatedOrder.Client ? { ...updatedOrder.Client.toJSON(), name: getUserName(updatedOrder.Client) } : null,

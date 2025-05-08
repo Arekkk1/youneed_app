@@ -69,7 +69,7 @@ exports.getEventsForCalendar = async (req, res) => {
             // Always include Client, Provider, and Service details
             { model: User, as: 'Client', attributes: ['id', 'firstName', 'lastName', 'companyName', 'email'] },
             { model: User, as: 'Provider', attributes: ['id', 'firstName', 'lastName', 'companyName', 'email'] },
-            { model: Service, attributes: ['id', 'name', 'price', 'duration'] },
+            { model: Service, as: 'Service', attributes: ['id', 'name', 'price', 'duration'] }, // Dodano as: 'Service'
         ];
 
         // Define date range condition (common for all views)

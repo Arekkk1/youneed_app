@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react'; // Added useEffect
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
-import axios from 'axios';
+import api from '../../api'; // Import scentralizowanej instancji API
 import GoogleIcon from '../../assets/icon/Google.svg';
 import FacebookIcon from '../../assets/icon/Facebook.svg';
-import { googleLogin, facebookLogin } from '../../services/AuthService'; // Import social login functions
+import { googleLogin, facebookLogin } from '../../services/AuthService'; // Poprawny import
+import { useAuth } from '../../context/AuthContext'; // Import useAuth
 
-// Ścieżka API z zmiennej środowiskowej lub domyślna
-const API_URL = 'http://49.13.68.62:5000/api'; // Use /api prefix
+// Logowanie VITE_API_URL dla debugowania (może być usunięte po weryfikacji)
+console.log('[Login.jsx DEBUG] VITE_API_URL from import.meta.env:', import.meta.env.VITE_API_URL);
 
 // Schemat walidacji dla logowania
 const validationSchema = Yup.object({
@@ -21,100 +22,111 @@ const forgotPasswordSchema = Yup.object({
   email: Yup.string().email('Nieprawidłowy email').required('Email jest wymagany'),
 });
 
-function Login({ setRole }) {
+function Login({ setRole }) { // setRole is a prop from App.jsx
   const navigate = useNavigate();
   const location = useLocation();
+  const auth = useAuth(); // Get auth context methods
   const params = new URLSearchParams(location.search);
   const roleFromUrl = params.get('role');
-  const sessionExpired = params.get('sessionExpired'); // Check for session expiry flag
+  const sessionExpired = params.get('sessionExpired');
   const [role, setLocalRole] = useState(roleFromUrl || localStorage.getItem('role') || 'client');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [loginError, setLoginError] = useState(''); // State for general login errors
-  const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(''); // State for success message
+  const [loginError, setLoginError] = useState('');
+  const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState('');
 
-  // Update role state if URL changes
   useEffect(() => {
     if (roleFromUrl) {
       setLocalRole(roleFromUrl);
-      localStorage.setItem('role', roleFromUrl); // Persist role from URL
+      localStorage.setItem('role', roleFromUrl);
     }
   }, [roleFromUrl]);
 
-  // Show session expired message
-   useEffect(() => {
-     if (sessionExpired) {
-       setLoginError('Sesja wygasła. Zaloguj się ponownie.');
-       // Clean the URL
-       window.history.replaceState(null, '', `/login?role=${role}`);
-     }
-   }, [sessionExpired, role]);
+  useEffect(() => {
+    if (sessionExpired) {
+      setLoginError('Sesja wygasła. Zaloguj się ponownie.');
+      const currentQuery = new URLSearchParams(location.search);
+      currentQuery.delete('sessionExpired');
+      navigate(`${location.pathname}?${currentQuery.toString()}`, { replace: true });
+    }
+  }, [sessionExpired, location.search, location.pathname, navigate]);
 
   const handleSubmit = async (values, { setSubmitting, setErrors }) => {
-    setLoginError(''); // Clear previous errors
-    try {
-      // Use the correct endpoint from the refactored backend
-      const res = await axios.post(`${API_URL}/auth/login`, { ...values, role }, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      console.log('Odpowiedź serwera (Logowanie):', res.data); // Log for debug
+    setLoginError('');
+    // Endpoint jest teraz ścieżką względną do baseURL zdefiniowanego w api.js
+    const loginEndpoint = '/auth/login';
+    console.log('[Login.jsx DEBUG] Attempting to login to endpoint:', loginEndpoint, 'with base URL from api.js');
 
-      // Backend response structure: { status: 'success', data: { user: {...}, token: '...' } }
+    try {
+      // Użycie scentralizowanej instancji api
+      const res = await api.post(loginEndpoint, { ...values, role });
+      console.log('[Login.jsx DEBUG] Odpowiedź serwera (Logowanie):', res.data);
+
       if (res.data.status === 'success' && res.data.data?.token && res.data.data?.user) {
-        const { token, user } = res.data.data;
-        localStorage.setItem('token', token);
-        localStorage.setItem('role', user.role);
-        localStorage.setItem('userId', user.id);
-        setRole(user.role); // Update App state
-        navigate(`/dashboard/${user.role}`);
+        const { token: tokenValue, user: userData } = res.data.data;
+        console.log('[Login.jsx DEBUG] Login successful. User data from backend:', JSON.stringify(userData, null, 2));
+        console.log('[Login.jsx DEBUG] User role from backend:', userData.role);
+
+        await auth.login(userData, tokenValue);
+        console.log('[Login.jsx DEBUG] auth.login() from AuthContext called.');
+        console.log('[Login.jsx DEBUG] localStorage role after auth.login():', localStorage.getItem('role'));
+        console.log('[Login.jsx DEBUG] localStorage token after auth.login():', localStorage.getItem('token') ? 'Present' : 'Absent');
+
+        if (typeof setRole === 'function') {
+            setRole(userData.role);
+            console.log('[Login.jsx DEBUG] App.jsx role state updated via setRole prop.');
+        } else {
+            console.warn('[Login.jsx DEBUG] setRole prop is not a function.');
+        }
+
+        console.log(`[Login.jsx DEBUG] Navigating to: /dashboard/${userData.role}`);
+        navigate(`/dashboard/${userData.role}`);
       } else {
-        // Handle unexpected success response structure
-        console.error('Unexpected login response structure:', res.data);
-        setLoginError(res.data.message || 'Otrzymano nieoczekiwaną odpowiedź z serwera.');
-        setErrors({ api: res.data.message || 'Otrzymano nieoczekiwaną odpowiedź z serwera.' });
+        const errorMessage = res.data.message || 'Otrzymano nieoczekiwaną odpowiedź z serwera.';
+        console.error('[Login.jsx DEBUG] Unexpected login response structure:', res.data);
+        setLoginError(errorMessage);
+        setErrors({ api: errorMessage });
       }
     } catch (err) {
-      console.error('Błąd logowania:', err.response?.data || err.message);
+      console.error('[Login.jsx DEBUG] Błąd logowania:', err.response?.data || err.message, err);
       const errorMessage = err.response?.data?.message || 'Błąd logowania. Sprawdź dane lub połączenie.';
-      setLoginError(errorMessage); // Set general error message
-      setErrors({ api: errorMessage }); // Set formik error
+      setLoginError(errorMessage);
+      setErrors({ api: errorMessage });
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleForgotPassword = async (values, { setSubmitting, setErrors, resetForm }) => {
-    setLoginError(''); // Clear previous errors
-    setForgotPasswordSuccess(''); // Clear previous success message
+    setLoginError('');
+    setForgotPasswordSuccess('');
+    // Endpoint jest teraz ścieżką względną do baseURL zdefiniowanego w api.js
+    const forgotPasswordEndpoint = '/auth/forgot-password';
+    console.log('[Login.jsx DEBUG] Attempting forgot password to endpoint:', forgotPasswordEndpoint, 'with base URL from api.js');
+
     try {
-      // Use the correct endpoint
-      await axios.post(`${API_URL}/auth/forgot-password`, { ...values, role }, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      // Użycie scentralizowanej instancji api
+      await api.post(forgotPasswordEndpoint, { ...values, role });
       resetForm();
       setShowForgotPassword(false);
       setForgotPasswordSuccess('Jeśli konto istnieje, link do resetowania hasła został wysłany na Twój email.');
-      // alert('Link do resetowania hasła został wysłany na Twój email.'); // Use state message instead
     } catch (err) {
       console.error('Błąd resetowania hasła:', err.response?.data || err.message);
       const errorMessage = err.response?.data?.message || 'Błąd wysyłania linku resetowania hasła';
-      setLoginError(errorMessage); // Set general error message
-      setErrors({ api: errorMessage }); // Set formik error
+      setLoginError(errorMessage);
+      setErrors({ api: errorMessage });
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Use AuthService functions for social login
   const handleSocialLoginClick = (provider) => {
-    setLoginError(''); // Clear errors before redirecting
+    setLoginError('');
+    // Funkcje googleLogin i facebookLogin pochodzą z AuthService i używają VITE_API_URL
+    // który powinien być teraz poprawnie ustawiony na https://api.youneed.com.pl/api
     if (provider === 'google') {
-      googleLogin(role);
+      googleLogin(role); // Wywołanie funkcji z AuthService
     } else if (provider === 'facebook') {
-      facebookLogin(role);
+      facebookLogin(role); // Wywołanie funkcji z AuthService
     }
   };
 
@@ -125,7 +137,6 @@ function Login({ setRole }) {
           Logowanie {role === 'provider' ? 'Usługodawcy' : role === 'admin' ? 'Administratora' : 'Zleceniodawcy'}
         </h2>
 
-        {/* Display general errors or success messages */}
         {loginError && <p className="text-red-500 text-sm text-center mb-4">{loginError}</p>}
         {forgotPasswordSuccess && <p className="text-green-600 text-sm text-center mb-4">{forgotPasswordSuccess}</p>}
 
@@ -155,7 +166,6 @@ function Login({ setRole }) {
                   />
                   <ErrorMessage name="password" component="p" className="text-red-500 text-xs mt-1" />
                 </div>
-                {/* Formik error for API */}
                 <ErrorMessage name="api" component="p" className="text-red-500 text-xs text-center" />
 
                 <button
@@ -200,7 +210,6 @@ function Login({ setRole }) {
                 <p className="text-center text-sm text-Grayscale-Gray60 mt-4">
                   Nie masz konta?{' '}
                   <Link
-                    // Navigate to the correct registration page based on role
                     to={role === 'provider' ? '/register/provider' : '/register/client'}
                     className="underline text-sky-500 hover:text-sky-400"
                   >
@@ -216,7 +225,6 @@ function Login({ setRole }) {
             )}
           </Formik>
         ) : (
-          // Forgot Password Form
           <Formik
             initialValues={{ email: '' }}
             validationSchema={forgotPasswordSchema}
@@ -234,7 +242,6 @@ function Login({ setRole }) {
                   />
                   <ErrorMessage name="email" component="p" className="text-red-500 text-xs mt-1" />
                 </div>
-                 {/* Formik error for API */}
                  <ErrorMessage name="api" component="p" className="text-red-500 text-xs text-center" />
                 <button
                   type="submit"

@@ -1,14 +1,11 @@
 import axios from 'axios';
 
-
-const effectiveApiUrl = import.meta.env.VITE_API_URL || 'http://49.13.68.62:5000/api';
-console.log(`[API DEBUG] Effective API Base URL: ${effectiveApiUrl}`);
-
 const api = axios.create({
-  baseURL: effectiveApiUrl
+  baseURL: `${process.env.REACT_APP_API_URL || 'https://api.youneed.com.pl'}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
 // Interceptor to add JWT token to every request

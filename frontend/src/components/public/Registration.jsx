@@ -4,8 +4,8 @@ import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import api from '../../api'; // Use the centralized api instance
 import { toast } from 'react-hot-toast';
-import { Mail, Lock, User as UserIcon, Phone, CheckSquare, Square, Loader2, Home } from 'lucide-react'; // Added Home icon
-import logo from '../../assets/youneed_logo_black.png'; // Adjust path if needed
+import { Mail, Lock, User as UserIcon, Phone, CheckSquare, Square, Loader2, Home } from 'lucide-react';
+import logo from '../../assets/youneed_logo_black.png';
 
 // Validation Schema for Client Registration
 const ClientRegistrationSchema = Yup.object().shape({
@@ -25,12 +25,10 @@ const ClientRegistrationSchema = Yup.object().shape({
   confirmPassword: Yup.string()
     .oneOf([Yup.ref('password'), null], 'Hasła muszą być takie same')
     .required('Potwierdzenie hasła jest wymagane'),
-  // Address fields (make them optional or required as needed)
   street: Yup.string().optional().trim(),
   city: Yup.string().optional().trim(),
   zipCode: Yup.string().optional().trim().matches(/^[0-9]{2}-[0-9]{3}$/, 'Nieprawidłowy format kodu pocztowego (np. 00-000)'),
   country: Yup.string().optional().trim(),
-  // Consents
   acceptTerms: Yup.boolean().oneOf([true], 'Akceptacja regulaminu jest wymagana'),
   marketingConsent: Yup.boolean(),
   partnerConsent: Yup.boolean(),
@@ -38,51 +36,41 @@ const ClientRegistrationSchema = Yup.object().shape({
 
 function Registration() {
   const navigate = useNavigate();
-  const [apiError, setApiError] = useState('');
+  const [apiError, setApiError] = useState(''); // Used for toasts
 
   const handleSubmit = async (values, { setSubmitting, setErrors }) => {
-    setApiError('');
     const registrationToast = toast.loading('Rejestrowanie...');
 
-    // Prepare data structure expected by backend validation
     const registrationData = {
       firstName: values.firstName,
       lastName: values.lastName,
       email: values.email,
       password: values.password,
-      phone: values.phone, // Send phone number
-      role: 'client', // Explicitly set role for client registration
-      // Address object
+      phone: values.phone,
+      role: 'client',
       address: {
-          street: values.street || null, // Send null if empty
+          street: values.street || null,
           city: values.city || null,
           zipCode: values.zipCode || null,
           country: values.country || null,
       },
-      // Nested terms object as expected by backend validation
       terms: {
           acceptTerms: values.acceptTerms,
           marketingConsent: values.marketingConsent,
           partnerConsent: values.partnerConsent,
       },
-      // Other fields (not needed for client registration via this form)
-      // industry: null,
-      // companyName: null,
-      // tutorial: false,
     };
 
-    console.log("Sending registration data:", registrationData); // Debug log
+    console.log("Sending registration data:", registrationData);
 
     try {
-      // Use the standard registration endpoint
       const response = await api.post('/auth/register', registrationData);
-      console.log("Registration response:", response); // Debug log
+      console.log("Registration response:", response);
 
       if (response.data.status === 'success') {
         toast.success('Rejestracja pomyślna! Możesz się teraz zalogować.', { id: registrationToast, duration: 4000 });
         navigate('/login?role=client');
       } else {
-         // Handle specific backend errors if available
          if (response.data?.errors) {
              const errorMessages = response.data.errors.map(e => e.msg).join(' ');
              throw new Error(errorMessages || response.data.message || 'Nie udało się zarejestrować');
@@ -91,60 +79,85 @@ function Registration() {
          }
       }
     } catch (err) {
-      console.error("Błąd rejestracji:", err);
-      // Log the detailed error response if available
+      console.error("Błąd rejestracji (obiekt błędu):", err);
       if (err.response) {
-          console.error("Backend error response:", err.response.data);
+          console.error("Backend error response (data):", err.response.data);
       }
-      const message = err.response?.data?.message || err.message || 'Wystąpił błąd podczas rejestracji.';
-      const validationErrors = err.response?.data?.errors; // Get validation errors array
 
-      setApiError(message);
+      let primaryErrorMessage = 'Wystąpił błąd podczas rejestracji.';
+      if (err.response?.data?.message) {
+          primaryErrorMessage = err.response.data.message;
+      } else if (err.message) {
+          // For Axios errors, err.message might be "Request failed with status code 400"
+          // We prefer the backend's specific message if available.
+          if (err.response?.data?.message) {
+            primaryErrorMessage = err.response.data.message;
+          } else {
+            primaryErrorMessage = err.message; // Fallback to Axios or generic error message
+          }
+      }
+      
+      const backendValidationErrors = err.response?.data?.errors;
+      let formErrorsToSet = { api: primaryErrorMessage }; // Default to a general API error
 
-      // Map backend validation errors to Formik fields if possible
-      if (validationErrors && Array.isArray(validationErrors)) {
-          const formikErrors = {};
-          let generalErrorMessage = message; // Default to general message
+      if (backendValidationErrors && Array.isArray(backendValidationErrors) && backendValidationErrors.length > 0) {
+          const specificFieldErrors = {};
+          let unmappedErrorMessages = '';
 
-          validationErrors.forEach(e => {
-              // Map specific known paths
-              if (e.path === 'email') formikErrors.email = e.msg;
-              else if (e.path === 'password') formikErrors.password = e.msg;
-              else if (e.path === 'phone') formikErrors.phone = e.msg;
-              else if (e.path === 'firstName') formikErrors.firstName = e.msg;
-              else if (e.path === 'lastName') formikErrors.lastName = e.msg;
-              else if (e.path === 'terms.acceptTerms') formikErrors.acceptTerms = e.msg;
-              // Add mappings for address fields if backend validates them
-              else if (e.path === 'address.street') formikErrors.street = e.msg;
-              else if (e.path === 'address.city') formikErrors.city = e.msg;
-              else if (e.path === 'address.zipCode') formikErrors.zipCode = e.msg;
-              else if (e.path === 'address.country') formikErrors.country = e.msg;
-              else {
-                  // Collect unmapped errors for a general message
-                  if (!formikErrors.api) formikErrors.api = '';
-                  formikErrors.api += `${e.msg}. `;
+          backendValidationErrors.forEach(e => {
+              const field = e.path || e.param; // 'path' is common, 'param' is fallback
+              const msg = e.msg || 'Nieprawidłowa wartość.';
+
+              if (field && typeof field === 'string') {
+                  if (field === 'email') specificFieldErrors.email = msg;
+                  else if (field === 'password') specificFieldErrors.password = msg;
+                  else if (field === 'phone') specificFieldErrors.phone = msg;
+                  else if (field === 'firstName') specificFieldErrors.firstName = msg;
+                  else if (field === 'lastName') specificFieldErrors.lastName = msg;
+                  else if (field === 'terms.acceptTerms') specificFieldErrors.acceptTerms = msg;
+                  else if (field === 'address.street') specificFieldErrors.street = msg;
+                  else if (field === 'address.city') specificFieldErrors.city = msg;
+                  else if (field === 'address.zipCode') specificFieldErrors.zipCode = msg;
+                  else if (field === 'address.country') specificFieldErrors.country = msg;
+                  else {
+                      unmappedErrorMessages += `${msg} `;
+                  }
+              } else {
+                  unmappedErrorMessages += `${msg} `;
               }
           });
 
-          // If specific errors were mapped, use those primarily
-          if (Object.keys(formikErrors).length > 0) {
-              setErrors(formikErrors);
-              // Update the general API error message to be more specific if possible
-              generalErrorMessage = formikErrors.api || 'Popraw błędy w formularzu.';
-              setApiError(generalErrorMessage); // Update the displayed general error
-          } else {
-               setErrors({ api: message }); // Set general formik error if specific mapping fails
+          if (Object.keys(specificFieldErrors).length > 0) {
+              formErrorsToSet = { ...specificFieldErrors };
+              if (unmappedErrorMessages.trim()) {
+                  formErrorsToSet.api = `${unmappedErrorMessages.trim()} ${primaryErrorMessage}`.trim();
+              }
+          } else if (unmappedErrorMessages.trim()) {
+              formErrorsToSet.api = `${unmappedErrorMessages.trim()} ${primaryErrorMessage}`.trim();
           }
-
-          toast.error(`Błąd rejestracji: ${generalErrorMessage}`, { id: registrationToast });
-
-      } else {
-          // If no specific validation errors array, show the general message
-          setErrors({ api: message }); // Set general formik error
-          toast.error(`Błąd rejestracji: ${message}`, { id: registrationToast });
+          // If no specific errors and no unmapped errors, formErrorsToSet remains { api: primaryErrorMessage }
       }
+      
+      console.log("Setting Formik errors:", formErrorsToSet);
+      if (typeof setErrors === 'function') {
+        setErrors(formErrorsToSet);
+      } else {
+        console.error("setErrors is not a function. This is unexpected.");
+      }
+      
+      const toastErrorMessage = formErrorsToSet.api || primaryErrorMessage;
+      // setApiError(toastErrorMessage); // This state is mainly for toasts, toast.error handles it directly.
+                                     // Keeping it might be redundant if toast is the only consumer.
+                                     // For now, let's rely on the direct toast message.
+
+      toast.error(`Błąd: ${toastErrorMessage}`, { id: registrationToast, duration: 5000 });
+
     } finally {
-      setSubmitting(false);
+      if (typeof setSubmitting === 'function') {
+        setSubmitting(false);
+      } else {
+        console.error("setSubmitting is not a function. This is unexpected.");
+      }
     }
   };
 
@@ -162,12 +175,6 @@ function Registration() {
             Znajdź najlepszych specjalistów w swojej okolicy.
           </p>
 
-          {apiError && !formik.errors.api && ( // Show general API error only if no specific formik API error is set
-            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
-              {apiError}
-            </div>
-          )}
-
           <Formik
             initialValues={{
               firstName: '',
@@ -176,7 +183,7 @@ function Registration() {
               phone: '',
               password: '',
               confirmPassword: '',
-              street: '', // Address fields
+              street: '',
               city: '',
               zipCode: '',
               country: '',
@@ -202,7 +209,7 @@ function Registration() {
                         name="firstName"
                         id="firstName"
                         placeholder="Jan"
-                        className={`pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.firstName && touched.firstName ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                        className={`pl-10 block w-full rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.firstName && touched.firstName ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
                       />
                     </div>
                     <ErrorMessage name="firstName" component="p" className="mt-1 text-xs text-red-500" />
@@ -220,7 +227,7 @@ function Registration() {
                         name="lastName"
                         id="lastName"
                         placeholder="Kowalski"
-                        className={`pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.lastName && touched.lastName ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                        className={`pl-10 block w-full rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.lastName && touched.lastName ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
                       />
                     </div>
                     <ErrorMessage name="lastName" component="p" className="mt-1 text-xs text-red-500" />
@@ -239,7 +246,7 @@ function Registration() {
                       name="email"
                       id="email"
                       placeholder="twoj@email.com"
-                      className={`pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.email && touched.email ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                      className={`pl-10 block w-full rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.email && touched.email ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
                     />
                   </div>
                   <ErrorMessage name="email" component="p" className="mt-1 text-xs text-red-500" />
@@ -257,7 +264,7 @@ function Registration() {
                       name="phone"
                       id="phone"
                       placeholder="123456789"
-                      className={`pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.phone && touched.phone ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                      className={`pl-10 block w-full rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.phone && touched.phone ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
                     />
                   </div>
                   <ErrorMessage name="phone" component="p" className="mt-1 text-xs text-red-500" />
@@ -277,7 +284,7 @@ function Registration() {
                                     name="street"
                                     id="street"
                                     placeholder="ul. Przykładowa 10/5"
-                                    className={`pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.street && touched.street ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                                    className={`pl-10 block w-full rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.street && touched.street ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
                                 />
                             </div>
                             <ErrorMessage name="street" component="p" className="mt-1 text-xs text-red-500" />
@@ -291,7 +298,7 @@ function Registration() {
                                     name="city"
                                     id="city"
                                     placeholder="Warszawa"
-                                    className={`block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.city && touched.city ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                                    className={`block w-full rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.city && touched.city ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
                                 />
                                 <ErrorMessage name="city" component="p" className="mt-1 text-xs text-red-500" />
                             </div>
@@ -303,7 +310,7 @@ function Registration() {
                                     name="zipCode"
                                     id="zipCode"
                                     placeholder="00-001"
-                                    className={`block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.zipCode && touched.zipCode ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                                    className={`block w-full rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.zipCode && touched.zipCode ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
                                 />
                                 <ErrorMessage name="zipCode" component="p" className="mt-1 text-xs text-red-500" />
                             </div>
@@ -315,7 +322,7 @@ function Registration() {
                                     name="country"
                                     id="country"
                                     placeholder="Polska"
-                                    className={`block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.country && touched.country ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                                    className={`block w-full rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.country && touched.country ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
                                 />
                                 <ErrorMessage name="country" component="p" className="mt-1 text-xs text-red-500" />
                             </div>
@@ -336,11 +343,10 @@ function Registration() {
                       name="password"
                       id="password"
                       placeholder="••••••••"
-                      className={`pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.password && touched.password ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                      className={`pl-10 block w-full rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.password && touched.password ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
                     />
                   </div>
                   <ErrorMessage name="password" component="p" className="mt-1 text-xs text-red-500" />
-                   {/* Display password requirements helper text */}
                    {(!errors.password || !touched.password) && (
                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                            Min. 8 znaków, duża/mała litera, cyfra, znak specjalny.
@@ -360,7 +366,7 @@ function Registration() {
                       name="confirmPassword"
                       id="confirmPassword"
                       placeholder="••••••••"
-                      className={`pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.confirmPassword && touched.confirmPassword ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                      className={`pl-10 block w-full rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white ${errors.confirmPassword && touched.confirmPassword ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
                     />
                   </div>
                   <ErrorMessage name="confirmPassword" component="p" className="mt-1 text-xs text-red-500" />
@@ -368,14 +374,13 @@ function Registration() {
 
                 {/* Consents */}
                 <div className="space-y-3">
-                  {/* Terms */}
                   <div className="relative flex items-start">
                     <div className="flex h-6 items-center">
                        <Field
                            type="checkbox"
                            id="acceptTerms"
                            name="acceptTerms"
-                           className="hidden" // Hide default checkbox
+                           className="hidden"
                        />
                        <label
                            htmlFor="acceptTerms"
@@ -391,11 +396,9 @@ function Registration() {
                            </span>
                        </label>
                     </div>
-                     {/* Display error message specifically for acceptTerms */}
                      <ErrorMessage name="acceptTerms" component="p" className="mt-1 text-xs text-red-500 absolute left-0 top-full" />
                   </div>
 
-                  {/* Marketing */}
                   <div className="relative flex items-start">
                      <div className="flex h-6 items-center">
                        <Field
@@ -418,7 +421,6 @@ function Registration() {
                      </div>
                   </div>
 
-                   {/* Partners */}
                   <div className="relative flex items-start">
                      <div className="flex h-6 items-center">
                        <Field
@@ -442,11 +444,17 @@ function Registration() {
                   </div>
                 </div>
 
-                 {/* API Error for Formik */}
-                 <ErrorMessage name="api" component="p" className="text-red-500 text-sm text-center mt-2" />
+                 {/* 
+                    API Error for Formik - TYMCZASOWO ZAKOMENTOWANE DO CELÓW DIAGNOSTYCZNYCH
+                    Jeśli błąd 'formik is not defined' zniknie, problem leży w tym komponencie
+                    lub jego interakcji ze stanem Formika.
+                 */}
+                 {/* <ErrorMessage name="api" component="p" className="text-red-500 text-sm text-center mt-2" /> */}
+                 {errors.api && (
+                    <p className="text-red-500 text-sm text-center mt-2">{errors.api}</p>
+                 )}
 
 
-                {/* Submit Button */}
                 <div className="pt-2">
                   <button
                     type="submit"

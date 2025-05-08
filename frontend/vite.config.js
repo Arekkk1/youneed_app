@@ -7,19 +7,11 @@ export default defineConfig({
     react(),
     svgr(), // Enable SVG as React components
   ],
-  server: {
-    host: '0.0.0.0',
-    port: 5173,
-    strictPort: true, // Zatrzymaj, jeśli port 5000 jest zajęty
+   server: {
     proxy: {
-      '/api': {
-         target: 'http://49.13.68.62:5000/api',  // Dopasuj do portu Twojego backendu
-        changeOrigin: true,
-        secure: false,
-rewrite: (path) => path.replace(/^\/api/, '/api'),
+      '/api': 'https://api.youneed.com.pl/api',
     },
   },
-},
   preview: {
     host: 'youuneed.com.pl',
     port: 4173, // Domyślny port dla vite preview

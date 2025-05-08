@@ -208,11 +208,9 @@ router.get('/me', authenticate, async (req, res) => {
                       console.error('[AuthRoute] CRITICAL: sendEmail is not a function for welcome email!', typeof sendEmail);
                       // Optionally log an audit event here
                       await logAuditAction(user.id, 'welcome_email_failed_internal_type_error', { email: user.email, type: typeof sendEmail }, req.ip);
-                      // Decide if you want to throw an error or just log and continue
-                      // throw new Error('Internal server error: Email service unavailable.');
                   } else {
                       console.log(`[AuthRoute] Attempting to call sendEmail for welcome email to ${user.email}`);
-                      await sendEmail({ // This is line ~165
+                      await sendEmail({
                         toEmail: user.email,
                         subject: emailContent.subject,
                         htmlContent: emailContent.htmlContent,
@@ -228,13 +226,11 @@ router.get('/me', authenticate, async (req, res) => {
               } catch (mailError) {
                 console.error("Welcome Email Error (EmailLabs):", mailError);
                 await logAuditAction(user.id, 'welcome_email_failed', { email: user.email, error: mailError.message }, req.ip);
-                // Continue even if welcome email fails
               }
               // --- End Send Welcome Email ---
 
-              // Send user object without sensitive data
               const userResponse = {
-                  id: user.id, // CRITICAL: Ensure ID is included
+                  id: user.id,
                   email: user.email,
                   role: user.role,
                   firstName: user.firstName,
@@ -242,17 +238,13 @@ router.get('/me', authenticate, async (req, res) => {
                   acceptTerms: user.acceptTerms,
                   marketingConsent: user.marketingConsent,
                   partnerConsent: user.partnerConsent,
-                  // Include address if needed in response
-                  // address: user.address
               };
 
-              console.log("Sending success response:", { user: userResponse, token }); // Log success response
-              // Send nested response structure as expected by ProviderRegistration.jsx (and potentially other places)
+              console.log("Sending success response:", { user: userResponse, token });
               sendSuccessResponse(res, { user: userResponse, token }, 'Rejestracja zakończona sukcesem', 201);
             } catch (err) {
               console.error("Registration Server Error:", err);
               await logAuditAction(null, 'register_failed_server_error', { email, error: err.message }, req.ip);
-              // Send detailed error including validation errors if available
               sendErrorResponse(res, 500, 'Błąd podczas rejestracji', process.env.NODE_ENV !== 'production' ? err : { message: err.message });
             }
           }
@@ -274,14 +266,44 @@ router.get('/me', authenticate, async (req, res) => {
             const { email, password } = req.body;
 
             try {
-              const user = await User.findOne({ where: { email } });
+              const user = await User.findOne({
+                where: { email },
+                attributes: [
+                  'id',
+                  'email',
+                  'password',
+                  'role',
+                  'firstName',
+                  'lastName',
+                  'restrictions',
+                  'profilePicture',
+                  'acceptTerms',
+                  'marketingConsent',
+                  'partnerConsent'
+                ],
+                raw: true, // Fetch as plain object
+              });
 
               if (!user) {
                 await logAuditAction(null, 'login_failed_user_not_found', { email }, req.ip);
                 return sendErrorResponse(res, 401, 'Nieprawidłowy email lub hasło');
               }
 
-              if (user.restrictions?.banned) {
+              // --- DETAILED LOGGING (user is now a plain object if raw:true worked) ---
+              console.log('[AuthRoute DEBUG] /login - Raw user object (should be plain if raw:true):', JSON.stringify(user, null, 2));
+              // user.dataValues will not exist if raw:true, so we log 'user' directly
+              // console.log('[AuthRoute DEBUG] /login - user.dataValues:', JSON.stringify(user.dataValues, null, 2)); // This would error if raw:true
+              console.log(`[AuthRoute DEBUG] /login - user.id directly: ${user.id} (type: ${typeof user.id})`);
+              console.log(`[AuthRoute DEBUG] /login - user.firstName directly: ${user.firstName} (type: ${typeof user.firstName})`);
+              console.log(`[AuthRoute DEBUG] /login - user.role directly: ${user.role} (type: ${typeof user.role})`);
+              console.log(`[AuthRoute DEBUG] /login - user.profilePicture directly: ${user.profilePicture} (type: ${typeof user.profilePicture})`);
+              console.log(`[AuthRoute DEBUG] /login - user.acceptTerms directly: ${user.acceptTerms} (type: ${typeof user.acceptTerms})`);
+              console.log(`[AuthRoute DEBUG] /login - user.marketingConsent directly: ${user.marketingConsent} (type: ${typeof user.marketingConsent})`);
+              console.log(`[AuthRoute DEBUG] /login - user.partnerConsent directly: ${user.partnerConsent} (type: ${typeof user.partnerConsent})`);
+              // --- END OF DETAILED LOGGING ---
+
+
+              if (user.restrictions?.banned) { // Accessing restrictions might need adjustment if it's JSON stored as string
                  await logAuditAction(user.id, 'login_failed_banned', { email }, req.ip);
                  return sendErrorResponse(res, 403, 'Konto użytkownika jest zablokowane');
               }
@@ -297,14 +319,10 @@ router.get('/me', authenticate, async (req, res) => {
                 return sendErrorResponse(res, 401, 'Nieprawidłowy email lub hasło');
               }
 
-              const tokenPayload = { id: user.id, role: user.role };
+              const tokenPayload = { id: user.id, role: user.role }; // user.role should now be correct if raw:true worked
               const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
                 expiresIn: process.env.JWT_EXPIRES_IN || '24h',
               });
-
-              // Update last login time
-              user.lastLogin = new Date();
-              await user.save();
 
               await logAuditAction(user.id, 'login_success', { email, role: user.role }, req.ip);
 
@@ -318,11 +336,8 @@ router.get('/me', authenticate, async (req, res) => {
                  acceptTerms: user.acceptTerms,
                  marketingConsent: user.marketingConsent,
                  partnerConsent: user.partnerConsent,
-                 // Include address if needed
-                 // address: user.address
               };
-
-              // Send nested response structure
+              console.log('[AuthRoute DEBUG] /login - UserInfo being sent to frontend:', userInfo);
               sendSuccessResponse(res, { user: userInfo, token }, 'Logowanie zakończone sukcesem');
             } catch (err) {
               await logAuditAction(null, 'login_failed_server_error', { email, error: err.message }, req.ip);
@@ -343,43 +358,33 @@ router.get('/me', authenticate, async (req, res) => {
         router.get(
           '/google/callback',
           (req, res, next) => {
-              // Extract state (role) before passport processing
               const role = req.query.state;
               passport.authenticate('google', {
                   session: false,
                   failureRedirect: `${process.env.FRONTEND_URL}/login?error=google_failed`
-              }, async (err, user, info) => { // Make callback async
-                  // Custom callback to handle user and role
+              }, async (err, user, info) => {
                   if (err) { return next(err); }
                   if (!user) {
-                      // Await logAuditAction here
                       await logAuditAction(null, 'google_callback_failed_no_user', {}, req.ip);
                       return res.redirect(`${process.env.FRONTEND_URL}/login?error=google_auth_failed`);
                   }
-                  req.user = user; // Attach user to request
-                  req.authInfo = { role: role || 'client' }; // Attach role info
+                  req.user = user;
+                  req.authInfo = { role: role || 'client' };
                   next();
               })(req, res, next);
           },
           async (req, res) => {
-              // Now req.user and req.authInfo are available
               try {
-                  const user = req.user; // User object from passport strategy
-                  // Role should ideally be determined/updated within the passport strategy based on state
-                  // If not, use req.authInfo.role as fallback
+                  const user = req.user;
                   const userRole = user.role || req.authInfo.role;
-
                   const tokenPayload = { id: user.id, role: userRole };
                   const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
                       expiresIn: process.env.JWT_EXPIRES_IN || '24h',
                   });
-
-                  // Ensure user role is updated if it was newly assigned in strategy
                   if (user.role !== userRole) {
                       user.role = userRole;
-                      await user.save(); // Save the updated role if necessary
+                      await user.save();
                   }
-
                   res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}&userId=${user.id}&role=${userRole}&provider=google`);
               } catch (err) {
                   await logAuditAction(req.user?.id, 'google_callback_failed_server_error', { email: req.user?.email, error: err.message }, req.ip);
@@ -388,55 +393,45 @@ router.get('/me', authenticate, async (req, res) => {
           }
         );
 
-
         // --- Facebook OAuth ---
         router.get('/facebook', (req, res, next) => {
           const role = req.query.role || 'client';
           passport.authenticate('facebook', {
             scope: ['email', 'public_profile'],
-            state: role // Pass role via state
+            state: role
           })(req, res, next);
         });
 
         router.get(
           '/facebook/callback',
            (req, res, next) => {
-              // Extract state (role) before passport processing
               const role = req.query.state;
               passport.authenticate('facebook', {
                   session: false,
                   failureRedirect: `${process.env.FRONTEND_URL}/login?error=facebook_failed`
-              }, async (err, user, info) => { // Make callback async
-                  // Custom callback to handle user and role
+              }, async (err, user, info) => {
                   if (err) { return next(err); }
                   if (!user) {
-                      // Await logAuditAction here
                       await logAuditAction(null, 'facebook_callback_failed_no_user', {}, req.ip);
                       return res.redirect(`${process.env.FRONTEND_URL}/login?error=facebook_auth_failed`);
                   }
-                  req.user = user; // Attach user to request
-                  req.authInfo = { role: role || 'client' }; // Attach role info
+                  req.user = user;
+                  req.authInfo = { role: role || 'client' };
                   next();
               })(req, res, next);
           },
           async (req, res) => {
-             // Now req.user and req.authInfo are available
               try {
-                  const user = req.user; // User object from passport strategy
-                  // Role should ideally be determined/updated within the passport strategy based on state
+                  const user = req.user;
                   const userRole = user.role || req.authInfo.role;
-
                   const tokenPayload = { id: user.id, role: userRole };
                   const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
                       expiresIn: process.env.JWT_EXPIRES_IN || '24h',
                   });
-
-                   // Ensure user role is updated if it was newly assigned in strategy
                   if (user.role !== userRole) {
                       user.role = userRole;
-                      await user.save(); // Save the updated role if necessary
+                      await user.save();
                   }
-
                   res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}&userId=${user.id}&role=${userRole}&provider=facebook`);
               } catch (err) {
                   await logAuditAction(req.user?.id, 'facebook_callback_failed_server_error', { email: req.user?.email, error: err.message }, req.ip);
@@ -461,12 +456,10 @@ router.get('/me', authenticate, async (req, res) => {
               const user = await User.findOne({ where: { email } });
               if (!user) {
                 await logAuditAction(null, 'forgot_password_user_not_found', { email }, req.ip);
-                // Send success even if user not found to prevent email enumeration
                 return sendSuccessResponse(res, null, 'Jeśli konto istnieje, link do resetowania hasła został wysłany.');
               }
               if (!user.password) {
                  await logAuditAction(user.id, 'forgot_password_oauth_user', { email }, req.ip);
-                 // Send success even for OAuth users
                  return sendSuccessResponse(res, null, 'Resetowanie hasła nie jest dostępne dla kont połączonych przez Google/Facebook.');
               }
               const resetToken = crypto.randomBytes(32).toString('hex');
@@ -475,21 +468,14 @@ router.get('/me', authenticate, async (req, res) => {
               user.resetPasswordExpires = new Date(Date.now() + 3600000); // 1 hour expiry
               await user.save();
               const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
-
-              // --- Use Email Template ---
               const emailContent = getEmailTemplate('forgotPassword', { email, resetUrl });
               if (!emailContent) {
                   throw new Error('Forgot password email template not found.');
               }
-              // --- End Use Email Template ---
-
               try {
-                // Send email using EmailLabs service
-                // --- Check if sendEmail is a function before calling ---
                  if (typeof sendEmail !== 'function') {
                      console.error('[AuthRoute] CRITICAL: sendEmail is not a function for forgot password!', typeof sendEmail);
                      await logAuditAction(user.id, 'forgot_password_email_failed_internal_type_error', { email: user.email, type: typeof sendEmail }, req.ip);
-                     // Still send success to avoid revealing existing emails
                      sendSuccessResponse(res, null, 'Jeśli konto istnieje, link do resetowania hasła został wysłany.');
                  } else {
                      console.log(`[AuthRoute] Attempting to call sendEmail for forgot password to ${email}`);
@@ -506,12 +492,10 @@ router.get('/me', authenticate, async (req, res) => {
               } catch (mailError) {
                  console.error("Forgot Password Mail Error (EmailLabs):", mailError);
                  await logAuditAction(user.id, 'forgot_password_email_failed', { email, error: mailError.message }, req.ip);
-                 // Still send success to avoid revealing existing emails
                  sendSuccessResponse(res, null, 'Jeśli konto istnieje, link do resetowania hasła został wysłany.');
               }
             } catch (err) {
               await logAuditAction(null, 'forgot_password_server_error', { email, error: err.message }, req.ip);
-              // Avoid sending detailed error in production for security
               sendErrorResponse(res, 500, 'Błąd podczas przetwarzania żądania resetowania hasła', process.env.NODE_ENV !== 'production' ? err : undefined);
             }
           }
@@ -524,7 +508,6 @@ router.get('/me', authenticate, async (req, res) => {
             body('email').isEmail().withMessage('Nieprawidłowy format email').normalizeEmail(),
             body('token').notEmpty().withMessage('Token resetujący jest wymagany'),
             body('newPassword').isLength({ min: 8 }).withMessage('Nowe hasło musi mieć co najmniej 8 znaków')
-                // Add complexity validation matching registration
                 .matches(/[A-Z]/).withMessage('Hasło musi zawierać co najmniej jedną wielką literę')
                 .matches(/[a-z]/).withMessage('Hasło musi zawierać co najmniej jedną małą literę')
                 .matches(/[0-9]/).withMessage('Hasło musi zawierać co najmniej jedną cyfrę')
@@ -548,7 +531,6 @@ router.get('/me', authenticate, async (req, res) => {
                 await logAuditAction(null, 'reset_password_failed_invalid_or_expired', { email }, req.ip);
                 return sendErrorResponse(res, 400, 'Link do resetowania hasła jest nieprawidłowy lub wygasł.');
               }
-              // Ensure token comparison happens only if user is found
               const isTokenValid = await bcrypt.compare(token, user.resetPasswordToken);
               if (!isTokenValid) {
                 await logAuditAction(user.id, 'reset_password_failed_invalid_token', { email }, req.ip);
@@ -560,19 +542,12 @@ router.get('/me', authenticate, async (req, res) => {
               user.resetPasswordExpires = null;
               await user.save();
               await logAuditAction(user.id, 'reset_password_success', { email }, req.ip);
-
-              // --- Use Email Template ---
               const emailContent = getEmailTemplate('passwordResetConfirmation', { email });
               if (!emailContent) {
                   console.error('Password reset confirmation email template not found.');
-                  // Continue without sending email if template is missing, but log it
               }
-              // --- End Use Email Template ---
-
               try {
-                 // Send confirmation email using EmailLabs service (only if template exists)
                  if (emailContent) {
-                     // --- Check if sendEmail is a function before calling ---
                      if (typeof sendEmail !== 'function') {
                          console.error('[AuthRoute] CRITICAL: sendEmail is not a function for reset password confirmation!', typeof sendEmail);
                          await logAuditAction(user.id, 'reset_password_confirm_email_failed_internal_type_error', { email: user.email, type: typeof sendEmail }, req.ip);
@@ -591,9 +566,7 @@ router.get('/me', authenticate, async (req, res) => {
               } catch (mailError) {
                  console.error("Reset Password Confirmation Mail Error (EmailLabs):", mailError);
                  await logAuditAction(user.id, 'reset_password_confirm_email_failed', { email, error: mailError.message }, req.ip);
-                 // Continue even if confirmation email fails
               }
-
               await Notification.create({
                 userId: user.id,
                 message: 'Twoje hasło zostało pomyślnie zresetowane.',
@@ -611,13 +584,10 @@ router.get('/me', authenticate, async (req, res) => {
         // --- Logout ---
         router.post('/logout', async (req, res) => {
           try {
-            // For JWT, logout is typically handled client-side by removing the token.
-            // Server-side logout might involve token blacklisting if implemented.
-            const userId = req.user?.id; // Get user ID if token was validated by middleware
+            const userId = req.user?.id;
             if (userId) {
               await logAuditAction(userId, 'logout_success', {}, req.ip);
             } else {
-              // Log attempt even if no valid token was present
               await logAuditAction(null, 'logout_attempt_no_user', {}, req.ip);
             }
             sendSuccessResponse(res, null, 'Wylogowano pomyślnie');

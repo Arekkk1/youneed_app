@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext'; // Still needed for user details and logout
-import { useSidebar } from '../../context/SidebarContext';
+import { useAuth } from '../../context/AuthContext';
+import { useSidebar } from '../../context/SidebarContext'; // Import useSidebar
 import { useTheme } from '../../context/ThemeContext';
 import { Sun, Moon, Bell, User as UserIcon, Search, Menu, X, LogOut, LogIn, UserPlus, Settings } from 'lucide-react';
 import NotificationDropdown from './NotificationDropdown';
@@ -9,13 +9,12 @@ import api from '../../api';
 import useClickOutside from '../../hooks/useClickOutside';
 
 const AppHeader = () => {
-    // Use context for user details, logout, and loading state
     const { user, logout, loading: isAuthLoading } = useAuth();
-    const { toggleSidebar, isMobileOpen } = useSidebar();
+    // Destructure toggleMobileSidebar instead of toggleSidebar for the mobile menu button
+    const { toggleMobileSidebar, isMobileOpen } = useSidebar();
     const { theme, toggleTheme } = useTheme();
     const navigate = useNavigate();
 
-    // Local state for UI elements
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -23,8 +22,6 @@ const AppHeader = () => {
     const [isSearchLoading, setIsSearchLoading] = useState(false);
     const [isSearchFocused, setIsSearchFocused] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
-
-    // State to track authentication based on localStorage token
     const [isAuthenticated, setIsAuthenticated] = useState(false);
 
     const notificationRef = useRef(null);
@@ -35,17 +32,14 @@ const AppHeader = () => {
     useClickOutside(profileRef, () => setIsProfileOpen(false));
     useClickOutside(searchRef, () => setIsSearchFocused(false));
 
-    // Check localStorage for token on mount and when auth context loading state changes
     useEffect(() => {
-        // Assume token is stored under 'authToken'. Change if needed.
         const token = localStorage.getItem('token');
-        setIsAuthenticated(!!token); // Set state based on token presence
-    }, [isAuthLoading]); // Re-check when auth loading finishes, in case context updated localStorage
+        setIsAuthenticated(!!token);
+    }, [isAuthLoading]);
 
-    // Fetch unread notification count - depends on isAuthenticated state
     useEffect(() => {
         const fetchUnreadCount = async () => {
-            if (isAuthenticated) { // Use the local isAuthenticated state
+            if (isAuthenticated) {
                 try {
                     const response = await api.get('/common/notifications?isRead=false&limit=1');
                     if (response.data.status === 'success') {
@@ -62,11 +56,11 @@ const AppHeader = () => {
         fetchUnreadCount();
         const intervalId = setInterval(fetchUnreadCount, 60000);
         return () => clearInterval(intervalId);
-    }, [isAuthenticated]); // Depend on the local isAuthenticated state
+    }, [isAuthenticated]);
 
     const handleLogout = () => {
-        logout(); // Call logout from context (clears context, removes token)
-        setIsAuthenticated(false); // Update local state immediately
+        logout();
+        setIsAuthenticated(false);
         setIsProfileOpen(false);
         navigate('/');
     };
@@ -96,7 +90,6 @@ const AppHeader = () => {
     };
 
     const handleSearchResultClick = (result) => {
-        console.log("Navigating to result:", result);
         setSearchQuery('');
         setSearchResults([]);
         setIsSearchFocused(false);
@@ -105,10 +98,8 @@ const AppHeader = () => {
         } else if (result.type === 'order' && result.id) {
             navigate(`/provider/orders/${result.id}`);
         }
-        // Add more types as needed
     };
 
-    // Determine dashboard link based on user role from context (if available)
     const dashboardLink = isAuthenticated
         ? (user?.role === 'provider' ? '/provider/dashboard' : user?.role === 'client' ? '/client/dashboard' : '/')
         : '/';
@@ -117,27 +108,40 @@ const AppHeader = () => {
         <header className="sticky top-0 z-40 bg-white dark:bg-gray-900 shadow-sm dark:border-b dark:border-gray-800">
             <div className="px-4 mx-auto max-w-7xl sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16">
-                    {/* Left Side: Hamburger and Logo */}
                     <div className="flex items-center">
                         <button
-                            onClick={toggleSidebar}
+                            onClick={toggleMobileSidebar} // CHANGED: Use toggleMobileSidebar here
                             className="p-2 mr-2 text-gray-500 rounded-md lg:hidden hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sky-500 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700"
                             aria-label="Toggle sidebar"
                         >
                             {isMobileOpen ? <X size={24} /> : <Menu size={24} />}
                         </button>
                         <Link to={dashboardLink} className="flex-shrink-0">
-                            
                             <img
                                 className="hidden w-auto h-10 dark:hidden lg:block"
                                 src="/images/logo/youneed_logo_black.png"
                                 alt="YouNeed Logo"
                             />
-                      
+                            {/* Mobile logo - visible on small screens, hidden on lg and up */}
+                            <img
+                                className="block w-auto h-8 dark:hidden lg:hidden"
+                                src="/images/logo/youneed_logo_black.png" 
+                                alt="YouNeed Logo Mobile"
+                            />
+                            {/* Dark mode logos */}
+                            <img
+                                className="hidden w-auto h-10 dark:lg:block"
+                                src="/images/logo/logo-dark.svg" // Assuming you have a dark mode logo
+                                alt="YouNeed Logo Dark"
+                            />
+                             <img
+                                className="hidden w-auto h-8 dark:block dark:lg:hidden"
+                                src="/images/logo/logo-dark.svg" // Assuming you have a dark mode mobile logo
+                                alt="YouNeed Logo Dark Mobile"
+                            />
                         </Link>
                     </div>
 
-                    {/* Center: Search Bar */}
                     <div className="flex-1 hidden sm:flex justify-center px-4">
                         <div className="relative w-full max-w-lg" ref={searchRef}>
                             <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
@@ -178,9 +182,7 @@ const AppHeader = () => {
                         </div>
                     </div>
 
-                    {/* Right Side: Theme Toggle, Notifications, Profile / Login/Register */}
-                    <div className="flex items-center space-x-2 md:space-x-4"> {/* Adjusted spacing */}
-                        {/* Theme Toggle */}
+                    <div className="flex items-center space-x-2 md:space-x-4">
                         <button
                             onClick={toggleTheme}
                             className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 dark:focus:ring-offset-gray-800"
@@ -189,17 +191,13 @@ const AppHeader = () => {
                             {theme === 'dark' ? <Sun size={22} /> : <Moon size={22} />}
                         </button>
 
-                        {/* Conditional Rendering based on Auth State */}
                         {isAuthLoading ? (
-                            // Loading State: Placeholder to maintain layout
                             <div className="flex items-center space-x-2 md:space-x-4">
                                 <div className="w-8 h-8 bg-gray-300 rounded-full animate-pulse dark:bg-gray-700"></div>
                                 <div className="w-8 h-8 bg-gray-300 rounded-full animate-pulse dark:bg-gray-700"></div>
                             </div>
-                        ) : isAuthenticated ? ( // <<< CHANGED condition to use local state based on localStorage token
-                            // Logged-in State: Notifications & Profile
+                        ) : isAuthenticated ? (
                             <>
-                                {/* Notification Button */}
                                 <div className="relative" ref={notificationRef}>
                                     <button
                                         onClick={() => setIsNotificationOpen(!isNotificationOpen)}
@@ -218,7 +216,6 @@ const AppHeader = () => {
                                     )}
                                 </div>
 
-                                {/* Profile Dropdown */}
                                 <div className="relative" ref={profileRef}>
                                     <div>
                                         <button
@@ -230,7 +227,6 @@ const AppHeader = () => {
                                             aria-label="User menu"
                                         >
                                             <span className="sr-only">Otwórz menu użytkownika</span>
-                                            {/* Use user object from context for details */}
                                             {user?.profilePicture ? (
                                                 <img
                                                     className="w-8 h-8 rounded-full"
@@ -257,21 +253,19 @@ const AppHeader = () => {
                                             aria-orientation="vertical"
                                             aria-labelledby="user-menu-button"
                                         >
-                                            {/* Use user object from context for details */}
                                             <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-600">
                                                 <p className="text-sm text-gray-700 dark:text-gray-200">Zalogowano jako</p>
                                                 <p className="text-sm font-medium text-gray-900 truncate dark:text-white">{user?.email}</p>
                                             </div>
                                             <div className="py-1">
                                                 <Link
-                                                    to="/settings" // Unified settings path
+                                                    to="/settings"
                                                     className="flex items-center w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
                                                     role="menuitem"
                                                     onClick={() => setIsProfileOpen(false)}
                                                 >
                                                     <Settings className="w-4 h-4 mr-2" /> Ustawienia
                                                 </Link>
-                                                {/* Add more links as needed */}
                                             </div>
                                             <div className="py-1 border-t border-gray-100 dark:border-gray-700">
                                                 <button
@@ -287,7 +281,6 @@ const AppHeader = () => {
                                 </div>
                             </>
                         ) : (
-                            // Logged-out State: Login & Register
                             <div className="flex items-center space-x-2 md:space-x-4">
                                 <Link
                                     to="/login"
@@ -296,7 +289,7 @@ const AppHeader = () => {
                                     <LogIn className="inline w-4 h-4 mr-1" /> Zaloguj się
                                 </Link>
                                 <Link
-                                    to="/register/provider" // Link to provider registration flow
+                                    to="/register/provider"
                                     className="inline-flex items-center px-3 py-2 rounded-md text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500"
                                 >
                                     <UserPlus className="inline w-4 h-4 mr-1" /> Zarejestruj się

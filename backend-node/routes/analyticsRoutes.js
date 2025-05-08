@@ -39,19 +39,32 @@ const getDateRange = (rangeQuery) => {
 
 // GET: /api/analytics/metrics
 router.get('/metrics', async (req, res) => {
-    const userId = req.user.id;
-    const userRole = req.user.role;
+    // DETAILED LOGGING HERE
+    console.log('[AnalyticsRoutes DEBUG /metrics] --- Route Handler Start ---');
+    console.log('[AnalyticsRoutes DEBUG /metrics] req.user object:', JSON.stringify(req.user, null, 2));
+    if (req.user) {
+        console.log(`[AnalyticsRoutes DEBUG /metrics] req.user.id: ${req.user.id}, Type: ${typeof req.user.id}`);
+        console.log(`[AnalyticsRoutes DEBUG /metrics] req.user.role: "${req.user.role}", Type: ${typeof req.user.role}`);
+    } else {
+        console.log('[AnalyticsRoutes DEBUG /metrics] req.user is undefined or null');
+    }
+
+    const userId = req.user ? req.user.id : null; // Handle potential undefined req.user
+    const userRole = req.user ? req.user.role : null; // Handle potential undefined req.user
+
+    console.log(`[AnalyticsRoutes DEBUG /metrics] Extracted userId: ${userId}, userRole: "${userRole}"`);
+
     try {
         let metrics = {};
         let whereBase = {};
 
         if (userRole === 'provider') {
+            console.log('[AnalyticsRoutes DEBUG /metrics] Role is "provider"');
             whereBase = { providerId: userId };
             const [earningsResult, completedOrders, pendingOrders, activeServices] = await Promise.all([
                 Order.findOne({
-                    // ** FIX: Use db.sequelize.fn and db.sequelize.col **
                     attributes: [[db.sequelize.fn('SUM', db.sequelize.col('Service.price')), 'totalEarnings']],
-                    include: [{ model: Service, attributes: [], required: true }],
+                    include: [{ model: Service, as: 'Service', attributes: [], required: true }], // Dodano as: 'Service'
                     where: { ...whereBase, status: 'completed' },
                     raw: true,
                 }),
@@ -68,12 +81,12 @@ router.get('/metrics', async (req, res) => {
                 label: 'Zarobki',
             };
         } else if (userRole === 'client') {
+            console.log('[AnalyticsRoutes DEBUG /metrics] Role is "client"');
             whereBase = { clientId: userId };
              const [expensesResult, totalOrdersPlaced, pendingOrders, activeOrders] = await Promise.all([
                 Order.findOne({
-                    // ** FIX: Use db.sequelize.fn and db.sequelize.col **
                     attributes: [[db.sequelize.fn('SUM', db.sequelize.col('Service.price')), 'totalExpenses']],
-                    include: [{ model: Service, attributes: [], required: true }],
+                    include: [{ model: Service, as: 'Service', attributes: [], required: true }], // Dodano as: 'Service'
                     where: { ...whereBase, status: { [Op.in]: ['completed', 'accepted'] } },
                     raw: true,
                 }),
@@ -90,11 +103,11 @@ router.get('/metrics', async (req, res) => {
                 label: 'Wydatki',
             };
         } else if (userRole === 'admin') {
+            console.log('[AnalyticsRoutes DEBUG /metrics] Role is "admin"');
              const [revenueResult, totalUsers, totalProviders, totalClients, totalOrders] = await Promise.all([
                  Order.findOne({
-                     // ** FIX: Use db.sequelize.fn and db.sequelize.col **
                      attributes: [[db.sequelize.fn('SUM', db.sequelize.col('Service.price')), 'totalRevenue']],
-                     include: [{ model: Service, attributes: [], required: true }],
+                     include: [{ model: Service, as: 'Service', attributes: [], required: true }], // Dodano as: 'Service'
                      where: { status: 'completed' },
                      raw: true,
                  }),
@@ -113,6 +126,7 @@ router.get('/metrics', async (req, res) => {
                 label: 'Przychód Platformy',
             };
         } else {
+            console.log(`[AnalyticsRoutes DEBUG /metrics] Role is "${userRole}" - falling into else (Invalid user role)`);
             return sendErrorResponse(res, 403, 'Invalid user role for metrics');
         }
 
@@ -131,37 +145,47 @@ router.get('/metrics', async (req, res) => {
 
 // GET: /api/analytics/monthly-sales
 router.get('/monthly-sales', async (req, res) => {
-    const userId = req.user.id;
-    const userRole = req.user.role;
+    console.log('[AnalyticsRoutes DEBUG /monthly-sales] --- Route Handler Start ---');
+    console.log('[AnalyticsRoutes DEBUG /monthly-sales] req.user object:', JSON.stringify(req.user, null, 2));
+    if (req.user) {
+        console.log(`[AnalyticsRoutes DEBUG /monthly-sales] req.user.id: ${req.user.id}, Type: ${typeof req.user.id}`);
+        console.log(`[AnalyticsRoutes DEBUG /monthly-sales] req.user.role: "${req.user.role}", Type: ${typeof req.user.role}`);
+    } else {
+        console.log('[AnalyticsRoutes DEBUG /monthly-sales] req.user is undefined or null');
+    }
+    const userId = req.user ? req.user.id : null;
+    const userRole = req.user ? req.user.role : null;
+    console.log(`[AnalyticsRoutes DEBUG /monthly-sales] Extracted userId: ${userId}, userRole: "${userRole}"`);
+
     try {
         let whereBase = {};
-        // ** FIX: Use db.sequelize.col **
         let valueColumn = db.sequelize.col('Service.price');
         let dateColumn = userRole === 'client' ? 'createdAt' : 'updatedAt';
 
         if (userRole === 'provider') {
+            console.log('[AnalyticsRoutes DEBUG /monthly-sales] Role is "provider"');
             whereBase = { providerId: userId, status: 'completed' };
         } else if (userRole === 'client') {
+            console.log('[AnalyticsRoutes DEBUG /monthly-sales] Role is "client"');
             whereBase = { clientId: userId, status: { [Op.in]: ['completed', 'accepted'] } };
         } else if (userRole === 'admin') {
+            console.log('[AnalyticsRoutes DEBUG /monthly-sales] Role is "admin"');
             whereBase = { status: 'completed' };
         } else {
+            console.log(`[AnalyticsRoutes DEBUG /monthly-sales] Role is "${userRole}" - falling into else (Invalid user role)`);
             return sendErrorResponse(res, 403, 'Invalid user role for monthly sales');
         }
 
         const currentYear = new Date().getFullYear();
-        // ** FIX: Use db.sequelize.where, db.sequelize.fn, db.sequelize.col **
         const yearCondition = db.sequelize.where(db.sequelize.fn('YEAR', db.sequelize.col(`Order.${dateColumn}`)), currentYear);
 
         const monthlyData = await Order.findAll({
             attributes: [
-                // ** FIX: Use db.sequelize.fn and db.sequelize.col **
                 [db.sequelize.fn('MONTH', db.sequelize.col(`Order.${dateColumn}`)), 'month'],
                 [db.sequelize.fn('SUM', valueColumn), 'totalValue']
             ],
-            include: [{ model: Service, attributes: [], required: true }],
+            include: [{ model: Service, as: 'Service', attributes: [], required: true }], // Dodano as: 'Service'
             where: { ...whereBase, [Op.and]: [yearCondition] },
-            // ** FIX: Use db.sequelize.fn and db.sequelize.col **
             group: [db.sequelize.fn('MONTH', db.sequelize.col(`Order.${dateColumn}`))],
             order: [[db.sequelize.fn('MONTH', db.sequelize.col(`Order.${dateColumn}`)), 'ASC']],
             raw: true,
@@ -190,21 +214,31 @@ router.get('/monthly-sales', async (req, res) => {
 
 // GET: /api/analytics/monthly-target
 router.get('/monthly-target', async (req, res) => {
-    const userId = req.user.id;
-    const userRole = req.user.role;
+    console.log('[AnalyticsRoutes DEBUG /monthly-target] --- Route Handler Start ---');
+    console.log('[AnalyticsRoutes DEBUG /monthly-target] req.user object:', JSON.stringify(req.user, null, 2));
+     if (req.user) {
+        console.log(`[AnalyticsRoutes DEBUG /monthly-target] req.user.id: ${req.user.id}, Type: ${typeof req.user.id}`);
+        console.log(`[AnalyticsRoutes DEBUG /monthly-target] req.user.role: "${req.user.role}", Type: ${typeof req.user.role}`);
+    } else {
+        console.log('[AnalyticsRoutes DEBUG /monthly-target] req.user is undefined or null');
+    }
+    const userId = req.user ? req.user.id : null;
+    const userRole = req.user ? req.user.role : null;
+    console.log(`[AnalyticsRoutes DEBUG /monthly-target] Extracted userId: ${userId}, userRole: "${userRole}"`);
+
     try {
         let targetData = { current: 0, target: 0, percentage: 0, label: '' };
 
         if (userRole === 'provider') {
+            console.log('[AnalyticsRoutes DEBUG /monthly-target] Role is "provider"');
             targetData.label = "Cel Miesięczny";
             const now = new Date();
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
             const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
             const earningsResult = await Order.findOne({
-                // ** FIX: Use db.sequelize.fn and db.sequelize.col **
                 attributes: [[db.sequelize.fn('SUM', db.sequelize.col('Service.price')), 'currentEarnings']],
-                include: [{ model: Service, attributes: [], required: true }],
+                include: [{ model: Service, as: 'Service', attributes: [], required: true }], // Dodano as: 'Service'
                 where: {
                     providerId: userId,
                     status: 'completed',
@@ -213,20 +247,23 @@ router.get('/monthly-target', async (req, res) => {
                 raw: true,
             });
             targetData.current = parseFloat(earningsResult?.currentEarnings || 0);
-
-            // ** FIX: Handle ProviderGoal schema mismatch - Keep temporary fix **
-            targetData.target = 5000; // Default target
+            targetData.target = 5000; 
             console.warn(`ProviderGoal model/table schema mismatch for user ${userId}. Using default target: ${targetData.target}`);
-
             if (targetData.target > 0) {
                 targetData.percentage = Math.min(100, Math.round((targetData.current / targetData.target) * 100));
             }
-
         } else if (userRole === 'client') {
-             targetData = { current: 0, target: 0, percentage: 0, label: "Budżet miesięczny (przykład)" };
+            console.log('[AnalyticsRoutes DEBUG /monthly-target] Role is "client"');
+            targetData = { current: 0, target: 0, percentage: 0, label: "Budżet miesięczny (przykład)" };
         } else if (userRole === 'admin') {
-             targetData = { current: 0, target: 100000, percentage: 0, label: "Cel przychodu platformy (przykład)" };
+            console.log('[AnalyticsRoutes DEBUG /monthly-target] Role is "admin"');
+            targetData = { current: 0, target: 100000, percentage: 0, label: "Cel przychodu platformy (przykład)" };
+        } else {
+             console.log(`[AnalyticsRoutes DEBUG /monthly-target] Role is "${userRole}" - falling into else (Invalid user role)`);
+             // No explicit error response here in original code, but it would just return empty targetData.
+             // For consistency, we could add: return sendErrorResponse(res, 403, 'Invalid user role for monthly target');
         }
+
 
          if (typeof logAuditAction === 'function') {
             await logAuditAction(userId, 'fetch_monthly_target_success', { role: userRole, targetData }, req.ip);
@@ -243,25 +280,48 @@ router.get('/monthly-target', async (req, res) => {
 
 // GET: /api/analytics/stats
 router.get('/stats', async (req, res) => {
-    const userId = req.user.id;
-    const userRole = req.user.role;
+    console.log('[AnalyticsRoutes DEBUG /stats] --- Route Handler Start ---');
+    console.log('[AnalyticsRoutes DEBUG /stats] req.user object:', JSON.stringify(req.user, null, 2));
+    if (req.user) {
+        console.log(`[AnalyticsRoutes DEBUG /stats] req.user.id: ${req.user.id}, Type: ${typeof req.user.id}`);
+        console.log(`[AnalyticsRoutes DEBUG /stats] req.user.role: "${req.user.role}", Type: ${typeof req.user.role}`);
+    } else {
+        console.log('[AnalyticsRoutes DEBUG /stats] req.user is undefined or null');
+    }
+    const userId = req.user ? req.user.id : null;
+    const userRole = req.user ? req.user.role : null;
+    console.log(`[AnalyticsRoutes DEBUG /stats] Extracted userId: ${userId}, userRole: "${userRole}"`);
     const { range } = req.query;
+
     try {
         let whereBase = {};
-        if (userRole === 'provider') whereBase.providerId = userId;
-        else if (userRole === 'client') whereBase.clientId = userId;
-        else if (userRole !== 'admin') return sendErrorResponse(res, 403, 'Invalid role for stats');
+        if (userRole === 'provider') {
+            console.log('[AnalyticsRoutes DEBUG /stats] Role is "provider"');
+            whereBase.providerId = userId;
+        } else if (userRole === 'client') {
+            console.log('[AnalyticsRoutes DEBUG /stats] Role is "client"');
+            whereBase.clientId = userId;
+        } else if (userRole === 'admin') {
+            console.log('[AnalyticsRoutes DEBUG /stats] Role is "admin"');
+            // No specific whereBase for admin, admin sees all
+        } else {
+            console.log(`[AnalyticsRoutes DEBUG /stats] Role is "${userRole}" - falling into else (Invalid user role)`);
+            return sendErrorResponse(res, 403, 'Invalid role for stats');
+        }
+
 
         const { startDate, endDate } = getDateRange(range || 'monthly');
-        whereBase.createdAt = { [Op.between]: [startDate, endDate] };
+        // Apply date range to whereBase, but only if whereBase is not for admin (who sees all time unless range specified differently)
+        // Or, always apply date range. The current logic applies it to all.
+        const dateFilteredWhere = { ...whereBase, createdAt: { [Op.between]: [startDate, endDate] } };
+
 
         const stats = await Order.findAll({
             attributes: [
                 'status',
-                // ** FIX: Use db.sequelize.fn and db.sequelize.col **
                 [db.sequelize.fn('COUNT', db.sequelize.col('id')), 'count']
             ],
-            where: whereBase,
+            where: dateFilteredWhere, // Use the date-filtered where clause
             group: ['status'],
             raw: true,
         });

@@ -1,60 +1,38 @@
-import axios from 'axios';
+import api from '../api'; // Assuming api.js exports the base axios instance
 
-// URL backendu - używaj /api prefix
-const API_URL = 'http://49.13.68.62:5000/api'; // Corrected base URL
+// The VITE_API_URL should be the base URL of your backend API
+// e.g., https://api.youneed.com.pl/api
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
-// Logowanie przez Google
-export const googleLogin = async (role = 'client') => { // Pass role if needed
-  try {
-    // Przekierowanie do endpointu Google API
-    window.location.href = `${API_URL}/auth/google?role=${role}`; // Corrected URL with /api and role
-  } catch (error) {
-    console.error('Szczegóły błędu Google:', error);
-    throw new Error('Błąd logowania Google: ' + error.message);
+/**
+ * Initiates Google login flow.
+ * @param {string} role - The role ('client' or 'provider') the user is trying to log in as.
+ */
+export const googleLogin = (role) => {
+  if (!API_BASE_URL) {
+    console.error('VITE_API_URL is not defined. Cannot initiate Google login.');
+    // Optionally, show an error to the user
+    return;
   }
+  // Redirects the browser to the backend Google OAuth endpoint.
+  // The backend will handle the authentication with Google and then redirect back to the frontend.
+  window.location.href = `${API_BASE_URL}/auth/google?role=${encodeURIComponent(role)}`;
 };
 
-// Logowanie przez Facebook
-export const facebookLogin = async (role = 'client') => { // Pass role if needed
-  try {
-    // Przekierowanie do endpointu Facebooka API
-    // No need for axios call here, just redirect
-    window.location.href = `${API_URL}/auth/facebook?role=${role}`; // Corrected URL with /api and role
-  } catch (error) {
-    console.error('Szczegóły błędu Facebook:', error);
-    throw new Error('Błąd logowania Facebook: ' + error.message);
+/**
+ * Initiates Facebook login flow.
+ * @param {string} role - The role ('client' or 'provider') the user is trying to log in as.
+ */
+export const facebookLogin = (role) => {
+  if (!API_BASE_URL) {
+    console.error('VITE_API_URL is not defined. Cannot initiate Facebook login.');
+    // Optionally, show an error to the user
+    return;
   }
+  // Redirects the browser to the backend Facebook OAuth endpoint.
+  window.location.href = `${API_BASE_URL}/auth/facebook?role=${encodeURIComponent(role)}`;
 };
 
-// Function to handle the OAuth callback
-export const handleAuthCallback = () => {
-  const params = new URLSearchParams(window.location.search);
-  const token = params.get('token');
-  const userId = params.get('userId');
-  const role = params.get('role');
-  const error = params.get('error');
-  const provider = params.get('provider'); // 'google' or 'facebook'
-
-  if (error) {
-    console.error(`Błąd logowania przez ${provider || 'OAuth'}:`, error);
-    // Optionally display error message to user
-    // Redirect back to login page with error shown
-    window.location.href = `/login?error=${error}`;
-    return null; // Indicate failure
-  }
-
-  if (token && userId && role) {
-    console.log(`Logowanie przez ${provider} zakończone sukcesem.`);
-    localStorage.setItem('token', token);
-    localStorage.setItem('userId', userId);
-    localStorage.setItem('role', role);
-    // Redirect to the appropriate dashboard
-    window.location.href = `/dashboard/${role}`; // Redirect after successful login
-    return { token, userId, role }; // Indicate success
-  }
-
-  // If no token/error, maybe redirect to login or handle appropriately
-  console.warn('Auth callback called without token or error.');
-  // window.location.href = '/login'; // Redirect if state is unexpected
-  return null; // Indicate unexpected state
-};
+// You can add other authentication-related functions here if needed,
+// for example, a function to handle the token after successful OAuth callback.
+// export const handleOAuthCallback = async (provider, queryParams) => { ... }
